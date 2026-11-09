@@ -1,0 +1,13 @@
+services:
+  - type: web
+    name: fig-supplier-app
+    runtime: docker
+    plan: free
+    region: singapore
+    envVars:
+      - key: API_KEY
+        value: sk-jhtkzuieckjmpdkssxahkhdjajmnymsuoqtmnpvsbkvostjm
+      - key: BASE_URL
+        value: https://api.siliconflow.cn/v1
+      - key: MODEL
+        value: Qwen/Qwen2.5-7B-Instruct
