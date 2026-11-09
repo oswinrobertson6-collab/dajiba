@@ -1,0 +1,7 @@
+.venv/
+bin/
+__pycache__/
+*.pyc
+.DS_Store
+*.db-journal
+test_*.py

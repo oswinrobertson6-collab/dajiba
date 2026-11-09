@@ -1,0 +1,2112 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+  <title>无花果项目 · 供应商智能录入助手</title>
+  <!-- 移动端 App 体验增强 Meta -->
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="无花果供应商录入">
+  <meta name="theme-color" content="#166534">
+
+  <!-- Tailwind CSS & Lucide Icons -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://unpkg.com/lucide@latest"></script>
+  <style>
+    /* 适配 iPhone 底部安全区 */
+    .pb-safe {
+      padding-bottom: env(safe-area-inset-bottom, 1rem);
+    }
+    body {
+      -webkit-tap-highlight-color: transparent;
+      user-select: none;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+    }
+    input, textarea {
+      user-select: text;
+    }
+    /* 隐藏滚动条 */
+    .no-scrollbar::-webkit-scrollbar {
+      display: none;
+    }
+    .no-scrollbar {
+      -ms-overflow-style: none;
+      scrollbar-width: none;
+    }
+  </style>
+</head>
+<body class="bg-slate-100 text-slate-800 antialiased min-h-screen flex flex-col justify-between">
+
+  <!-- 顶部导航栏 -->
+  <header class="bg-gradient-to-r from-emerald-800 to-teal-700 text-white shadow-md sticky top-0 z-40">
+    <div class="max-w-md mx-auto px-4 py-3 flex items-center justify-between">
+      <div class="flex items-center space-x-2">
+        <span class="text-2xl">🌱</span>
+        <div>
+          <h1 class="text-base font-bold tracking-tight">无花果供应商助手</h1>
+          <p class="text-xs text-emerald-200">碎片化记录 · 智能结构化入库</p>
+        </div>
+      </div>
+      <div class="flex items-center space-x-2">
+        <button onclick="toggleQrModal()" class="px-2.5 py-1 text-xs bg-emerald-700/80 hover:bg-emerald-600 rounded-full flex items-center border border-emerald-400/30">
+          <i data-lucide="qr-code" class="w-3.5 h-3.5 mr-1"></i>手机扫码
+        </button>
+        <button onclick="switchTab('tab-record')" class="px-2.5 py-1 text-xs bg-emerald-700/80 hover:bg-emerald-600 rounded-full flex items-center border border-emerald-400/30">
+          <i data-lucide="plus" class="w-3.5 h-3.5 mr-1"></i>录入
+        </button>
+      </div>
+    </div>
+  </header>
+
+  <!-- 主内容区域（手机宽度居中） -->
+  <main class="flex-1 max-w-md w-full mx-auto p-4 pb-24 overflow-y-auto">
+
+    <!-- ================= 页面 1: 智能碎片录入 ================= -->
+    <section id="tab-record" class="tab-page space-y-4">
+      
+      <!-- 提示条 -->
+      <div class="bg-emerald-50 border border-emerald-200 rounded-xl p-3 text-xs text-emerald-900 flex items-start space-x-2">
+        <i data-lucide="sparkles" class="w-4 h-4 text-emerald-600 flex-shrink-0 mt-0.5"></i>
+        <div>
+          <span class="font-semibold">使用小窍门：</span>把拜访工厂后记在备忘录、微信聊天里的随笔话直接粘进来，点“智能提取”，系统自动梳理并归档！
+        </div>
+      </div>
+
+      <!-- 输入卡片 -->
+      <div class="bg-white rounded-2xl p-4 shadow-sm border border-slate-200 space-y-3">
+        <div class="flex items-center justify-between">
+          <label class="text-xs font-bold text-slate-700 flex items-center">
+            <i data-lucide="file-text" class="w-4 h-4 mr-1 text-slate-500"></i>
+            粘贴碎片记录 / 随手备忘
+          </label>
+          <span id="char-count" class="text-xs text-slate-400">0 字</span>
+        </div>
+
+        <textarea 
+          id="raw-input" 
+          rows="5" 
+          placeholder="例：今天跑了威海荣成的一家果业合作社，李总13863128910，他们有1000多亩波姬红鲜果基地，主要做鲜果和烘干片，冻干片吨价4.5万，首单要全款后面月结30天。厂里设备很新，合作意愿很高..."
+          class="w-full text-sm p-3 border border-slate-200 rounded-xl focus:ring-2 focus:ring-emerald-500 focus:border-transparent outline-none transition bg-slate-50"
+          oninput="updateCharCount()"
+        ></textarea>
+
+        <!-- 快捷示例胶囊按钮 -->
+        <div class="flex items-center space-x-2 overflow-x-auto no-scrollbar py-1">
+          <span class="text-xs text-slate-400 flex-shrink-0">填入示例：</span>
+          <button onclick="fillSample(1)" class="text-xs px-2.5 py-1 bg-slate-100 hover:bg-slate-200 text-slate-600 rounded-lg flex-shrink-0 transition">
+            威海鲜果/果脯厂
+          </button>
+          <button onclick="fillSample(2)" class="text-xs px-2.5 py-1 bg-slate-100 hover:bg-slate-200 text-slate-600 rounded-lg flex-shrink-0 transition">
+            四川冻干/原浆厂
+          </button>
+          <button onclick="fillSample(3)" class="text-xs px-2.5 py-1 bg-slate-100 hover:bg-slate-200 text-slate-600 rounded-lg flex-shrink-0 transition">
+            新疆阿图什干果
+          </button>
+        </div>
+
+        <!-- 提取按钮 -->
+        <button 
+          id="btn-extract"
+          onclick="handleExtract()" 
+          class="w-full py-3 bg-emerald-600 hover:bg-emerald-700 active:bg-emerald-800 text-white font-medium rounded-xl flex items-center justify-center space-x-2 shadow-sm shadow-emerald-200 transition"
+        >
+          <i data-lucide="wand-2" class="w-4 h-4"></i>
+          <span id="btn-extract-text">AI 智能提取结构化信息</span>
+        </button>
+      </div>
+
+      <!-- 提取结果 / 结构化表单区 -->
+      <div id="form-container" class="bg-white rounded-2xl p-4 shadow-sm border border-slate-200 space-y-4 hidden">
+        <div class="flex items-center justify-between border-b pb-2">
+          <h3 class="text-sm font-bold text-slate-800 flex items-center">
+            <i data-lucide="check-circle" class="w-4 h-4 text-emerald-600 mr-1.5"></i>
+            结构化档案核对
+          </h3>
+          <span class="text-xs text-slate-400">核对后点击下方保存入库</span>
+        </div>
+
+        <div class="space-y-3 text-xs">
+          <div>
+            <label class="block font-semibold text-slate-600 mb-1">🏢 公司/工厂名称 *</label>
+            <input type="text" id="field-company-name" class="w-full p-2.5 text-sm bg-slate-50 border border-slate-200 rounded-lg focus:ring-1 focus:ring-emerald-500 outline-none font-medium">
+          </div>
+
+          <div class="grid grid-cols-2 gap-2">
+            <div>
+              <div class="flex items-center justify-between mb-1">
+                <label class="font-semibold text-slate-600">📍 所在位置/城市</label>
+                <button type="button" onclick="getCurrentLocation()" class="text-[10px] text-emerald-700 bg-emerald-50 hover:bg-emerald-100 px-1.5 py-0.5 rounded flex items-center border border-emerald-200">
+                  <i data-lucide="crosshair" class="w-2.5 h-2.5 mr-0.5"></i>现场定位
+                </button>
+              </div>
+              <input type="text" id="field-location" placeholder="如：山东省威海市荣成市" class="w-full p-2.5 text-sm bg-slate-50 border border-slate-200 rounded-lg focus:ring-1 focus:ring-emerald-500 outline-none">
+              <input type="hidden" id="field-lat">
+              <input type="hidden" id="field-lng">
+            </div>
+            <div>
+              <label class="block font-semibold text-slate-600 mb-1">🤝 合作意向度</label>
+              <select id="field-cooperation-intent" class="w-full p-2.5 text-sm bg-slate-50 border border-slate-200 rounded-lg focus:ring-1 focus:ring-emerald-500 outline-none">
+                <option value="高">🔥 高意向 (强烈)</option>
+                <option value="中" selected>⚡ 中等 (待进一步谈)</option>
+                <option value="低">❄️ 意向较低</option>
+              </select>
+            </div>
+          </div>
+
+          <div>
+            <label class="block font-semibold text-slate-600 mb-1">🏭 工厂规模 / 产能</label>
+            <input type="text" id="field-scale" placeholder="如：占地50亩，日产能10吨，冷库500吨" class="w-full p-2.5 text-sm bg-slate-50 border border-slate-200 rounded-lg focus:ring-1 focus:ring-emerald-500 outline-none">
+          </div>
+
+          <div>
+            <label class="block font-semibold text-slate-600 mb-1">📦 主要产品</label>
+            <input type="text" id="field-main-products" placeholder="如：波姬红鲜果、无花果冻干片、原浆" class="w-full p-2.5 text-sm bg-slate-50 border border-slate-200 rounded-lg focus:ring-1 focus:ring-emerald-500 outline-none">
+          </div>
+
+          <div>
+            <label class="block font-semibold text-slate-600 mb-1">⭐ 优势产品 / 拳头主打</label>
+            <input type="text" id="field-advantage-products" placeholder="如：冻干整果、高纯度原浆" class="w-full p-2.5 text-sm bg-slate-50 border border-slate-200 rounded-lg focus:ring-1 focus:ring-emerald-500 outline-none text-emerald-700 font-semibold">
+          </div>
+
+          <div>
+            <label class="block font-semibold text-slate-600 mb-1">💰 多款产品报价清单（支持各品类分列）</label>
+            <textarea id="field-price-terms" rows="2" placeholder="支持多款产品分列，例：&#10;巧克力: 13元/盒&#10;无花果干: 30元/斤&#10;特级鲜果: 18元/斤" class="w-full p-2.5 text-sm bg-slate-50 border border-slate-200 rounded-lg focus:ring-1 focus:ring-emerald-500 outline-none text-slate-800 font-medium"></textarea>
+          </div>
+
+          <div>
+            <label class="block font-semibold text-slate-600 mb-1">💳 账期 / 付款方式</label>
+            <input type="text" id="field-payment-terms" placeholder="如：首单现结，后续月结30天" class="w-full p-2.5 text-sm bg-slate-50 border border-slate-200 rounded-lg focus:ring-1 focus:ring-emerald-500 outline-none text-slate-800 font-medium">
+          </div>
+
+          <div class="grid grid-cols-3 gap-2">
+            <div>
+              <label class="block font-semibold text-slate-600 mb-1">👤 联系人</label>
+              <input type="text" id="field-contact-name" placeholder="姓名" class="w-full p-2.5 text-sm bg-slate-50 border border-slate-200 rounded-lg focus:ring-1 focus:ring-emerald-500 outline-none">
+            </div>
+            <div>
+              <label class="block font-semibold text-slate-600 mb-1">💼 职务</label>
+              <input type="text" id="field-contact-role" placeholder="如厂长/总经理" class="w-full p-2.5 text-sm bg-slate-50 border border-slate-200 rounded-lg focus:ring-1 focus:ring-emerald-500 outline-none">
+            </div>
+            <div>
+              <label class="block font-semibold text-slate-600 mb-1">📞 电话/微信</label>
+              <input type="text" id="field-contact-phone" placeholder="手机号" class="w-full p-2.5 text-sm bg-slate-50 border border-slate-200 rounded-lg focus:ring-1 focus:ring-emerald-500 outline-none text-blue-600 font-medium">
+            </div>
+          </div>
+
+          <div>
+            <label class="block font-semibold text-slate-600 mb-1">📝 考察备注 / 补充细节</label>
+            <textarea id="field-extra-notes" rows="2" placeholder="考察印象、车间洁净度、SC认证、样品寄送等" class="w-full p-2.5 text-sm bg-slate-50 border border-slate-200 rounded-lg focus:ring-1 focus:ring-emerald-500 outline-none"></textarea>
+          </div>
+
+          <!-- 实地照片 / 名片上传区 -->
+          <div class="border-t border-slate-100 pt-2 space-y-2">
+            <div class="flex items-center justify-between">
+              <label class="font-semibold text-slate-700 flex items-center">
+                <i data-lucide="camera" class="w-4 h-4 mr-1 text-emerald-600"></i>
+                工厂照片 / 样品 / 名片
+              </label>
+              <span id="photo-count-badge" class="text-[11px] text-slate-400">已选 0 张</span>
+            </div>
+
+            <!-- 照片缩略图容器 -->
+            <div id="photo-preview-grid" class="grid grid-cols-3 gap-2">
+              <!-- 动态添加缩略图 -->
+              <label class="border-2 border-dashed border-slate-200 hover:border-emerald-400 bg-slate-50 hover:bg-emerald-50/30 rounded-xl h-20 flex flex-col items-center justify-center cursor-pointer transition text-slate-400 hover:text-emerald-600">
+                <i data-lucide="plus" class="w-5 h-5 mb-0.5"></i>
+                <span class="text-[10px]">拍照/相册</span>
+                <input type="file" id="photo-input" accept="image/*" multiple class="hidden" onchange="handlePhotoUpload(event)">
+              </label>
+            </div>
+          </div>
+        </div>
+
+        <div class="pt-2 flex space-x-2">
+          <button onclick="handleSaveSupplier()" class="flex-1 py-3 bg-emerald-600 hover:bg-emerald-700 active:bg-emerald-800 text-white font-medium rounded-xl flex items-center justify-center space-x-1 shadow-sm shadow-emerald-200">
+            <i data-lucide="archive" class="w-4 h-4"></i>
+            <span>确认无误，保存入库</span>
+          </button>
+          <button onclick="resetExtractForm()" class="px-4 py-3 bg-slate-100 hover:bg-slate-200 text-slate-600 rounded-xl">
+            重置
+          </button>
+        </div>
+      </div>
+    </section>
+
+    <!-- ================= 页面 2: 供应商档案库 & 行程规划 ================= -->
+    <section id="tab-list" class="tab-page space-y-3 hidden">
+      <!-- 顶部：已考察 vs 待拜访行程 切换栏 -->
+      <div class="bg-slate-200/80 p-1 rounded-2xl flex items-center text-xs font-semibold">
+        <button onclick="switchListStatus('visited')" id="btn-status-visited" class="flex-1 py-2 rounded-xl bg-white text-emerald-800 shadow-xs flex items-center justify-center transition">
+          <i data-lucide="check-check" class="w-3.5 h-3.5 mr-1 text-emerald-600"></i>
+          已考察档案 (<span id="count-visited-badge">0</span>)
+        </button>
+        <button onclick="switchListStatus('planned')" id="btn-status-planned" class="flex-1 py-2 rounded-xl text-slate-600 hover:text-slate-900 flex items-center justify-center transition">
+          <i data-lucide="calendar" class="w-3.5 h-3.5 mr-1 text-amber-500"></i>
+          待拜访行程 (<span id="count-planned-badge">0</span>)
+        </button>
+      </div>
+
+      <!-- 搜索与筛选栏 -->
+      <div class="bg-white p-3 rounded-2xl border border-slate-200 shadow-sm space-y-2.5 sticky top-14 z-20">
+        <div class="flex items-center space-x-2">
+          <div class="relative flex-1">
+            <i data-lucide="search" class="w-4 h-4 text-slate-400 absolute left-3 top-3"></i>
+            <input 
+              type="text" 
+              id="search-input" 
+              oninput="debouncedSearch()"
+              placeholder="搜索工厂、人名、城市、无花果品类..." 
+              class="w-full pl-9 pr-3 py-2 text-sm bg-slate-50 border border-slate-200 rounded-xl focus:ring-1 focus:ring-emerald-500 outline-none"
+            >
+          </div>
+          <!-- 待拜访模式下出现的新增计划按钮 -->
+          <button id="btn-add-plan" onclick="openPlanModal()" class="px-3 py-2 bg-amber-500 hover:bg-amber-600 text-white rounded-xl text-xs font-medium flex items-center flex-shrink-0 shadow-sm hidden">
+            <i data-lucide="plus" class="w-3.5 h-3.5 mr-1"></i>加行程
+          </button>
+        </div>
+
+        <!-- 意向筛选快捷标签 (已考察模式下可见) -->
+        <div id="intent-filter-container" class="flex items-center space-x-1.5 overflow-x-auto no-scrollbar text-xs">
+          <button onclick="filterIntent('全部', this)" class="filter-intent-btn px-3 py-1 rounded-full bg-emerald-600 text-white font-medium flex-shrink-0">
+            全部 (<span id="count-all">0</span>)
+          </button>
+          <button onclick="filterIntent('高', this)" class="filter-intent-btn px-3 py-1 rounded-full bg-slate-100 text-slate-600 flex-shrink-0">
+            🔥 高意向 (<span id="count-high">0</span>)
+          </button>
+          <button onclick="filterIntent('中', this)" class="filter-intent-btn px-3 py-1 rounded-full bg-slate-100 text-slate-600 flex-shrink-0">
+            ⚡ 中等 (<span id="count-mid">0</span>)
+          </button>
+          <button onclick="filterIntent('低', this)" class="filter-intent-btn px-3 py-1 rounded-full bg-slate-100 text-slate-600 flex-shrink-0">
+            ❄️ 低意向 (<span id="count-low">0</span>)
+          </button>
+        </div>
+      </div>
+
+      <!-- 供应商列表容器 -->
+      <div id="supplier-cards" class="space-y-3">
+        <!-- 动态渲染卡片 -->
+      </div>
+    </section>
+
+    <!-- ================= 页面 3: 汇总与导出 ================= -->
+    <section id="tab-export" class="tab-page space-y-4 hidden">
+      <!-- 统计指标面板 -->
+      <div class="grid grid-cols-3 gap-2 text-center">
+        <div class="bg-white p-3 rounded-2xl border border-slate-200 shadow-sm">
+          <div class="text-xs text-slate-400 mb-1">拜访工厂总数</div>
+          <div id="stat-total" class="text-xl font-bold text-slate-800">0</div>
+        </div>
+        <div class="bg-white p-3 rounded-2xl border border-slate-200 shadow-sm">
+          <div class="text-xs text-slate-400 mb-1">高意向供应商</div>
+          <div id="stat-high" class="text-xl font-bold text-emerald-600">0</div>
+        </div>
+        <div class="bg-white p-3 rounded-2xl border border-slate-200 shadow-sm">
+          <div class="text-xs text-slate-400 mb-1">覆盖产区</div>
+          <div id="stat-locations" class="text-xl font-bold text-teal-600">0</div>
+        </div>
+      </div>
+
+      <!-- 导出操作卡片 -->
+      <div class="bg-white rounded-2xl p-5 border border-slate-200 shadow-sm space-y-4">
+        <div class="flex items-center space-x-3">
+          <div class="w-10 h-10 rounded-xl bg-emerald-100 flex items-center justify-center text-emerald-700 flex-shrink-0">
+            <i data-lucide="file-spreadsheet" class="w-5 h-5"></i>
+          </div>
+          <div>
+            <h3 class="font-bold text-sm text-slate-800">导出统一台账 Excel</h3>
+            <p class="text-xs text-slate-500">统一标准表头的大 Sheet 总表，自动分列与高亮</p>
+          </div>
+        </div>
+
+        <div class="space-y-2">
+          <!-- 全部导出 -->
+          <a 
+            href="/api/export/excel" 
+            download 
+            class="w-full py-3 bg-emerald-700 hover:bg-emerald-800 active:bg-emerald-900 text-white font-medium rounded-xl flex items-center justify-center space-x-2 shadow-sm text-xs transition"
+          >
+            <i data-lucide="download" class="w-4 h-4"></i>
+            <span>📗 导出全部供应商（统一 Sheet 总台账）</span>
+          </a>
+
+          <!-- 仅导出高意向 -->
+          <button 
+            onclick="exportHighIntentOnly()" 
+            class="w-full py-2.5 bg-emerald-50 hover:bg-emerald-100 text-emerald-800 font-medium rounded-xl flex items-center justify-center space-x-1.5 text-xs border border-emerald-200 transition"
+          >
+            <i data-lucide="star" class="w-3.5 h-3.5 text-amber-500"></i>
+            <span>⭐ 仅导出高意向供应商台账</span>
+          </button>
+
+          <!-- 导出全部照片 ZIP 包 -->
+          <a 
+            href="/api/export/photos/zip" 
+            download 
+            class="w-full py-2.5 bg-blue-50 hover:bg-blue-100 text-blue-800 font-medium rounded-xl flex items-center justify-center space-x-1.5 text-xs border border-blue-200 transition"
+          >
+            <i data-lucide="archive" class="w-3.5 h-3.5 text-blue-600"></i>
+            <span>📦 打包下载全部实地照片与名片 (.zip)</span>
+          </a>
+
+          <!-- 一键全量推送到坚果云 -->
+          <button 
+            onclick="syncAllToJgy()" 
+            id="export-tab-jgy-btn"
+            class="w-full py-2.5 bg-amber-50 hover:bg-amber-100 text-amber-900 font-medium rounded-xl flex items-center justify-center space-x-1.5 text-xs border border-amber-300 transition shadow-sm"
+          >
+            <span class="text-sm">🌰</span>
+            <span>一键全量备份至坚果云 (总台账 + 各厂档案 + 原照)</span>
+          </button>
+        </div>
+
+        <div class="text-[11px] text-slate-400 border-t pt-3 space-y-1">
+          <p>• <strong>统一总台账</strong>：将所有供应商收纳在同一个 Sheet 工作表中，高意向自动高亮浅绿背景。</p>
+          <p>• <strong>单家尽调表格</strong>：在「供应商库」点击任一家的「单家导出」，导出的 Excel <strong>已直接将该厂现场照片与名片整齐嵌入在表格下方</strong>！</p>
+          <p>• <strong>照片原图包</strong>：点击上方蓝色按钮，自动将所有拍摄的名片、果品、车间原图按工厂文件夹分类打包成 ZIP 压缩包下载。</p>
+        </div>
+      </div>
+
+      <!-- 移动端添加到主屏幕提示 -->
+      <div class="bg-gradient-to-r from-emerald-50 to-teal-50 rounded-2xl p-4 border border-emerald-100 space-y-2 text-xs text-emerald-900">
+        <div class="font-bold flex items-center">
+          <i data-lucide="smartphone" class="w-4 h-4 mr-1 text-emerald-700"></i>
+          像手机 App 一样随时使用：
+        </div>
+        <p class="text-slate-600">
+          • <strong>iPhone (Safari)</strong>: 点击底部的分享图标 ➔ 选择「添加到主屏幕」，即可生成桌面独立图标，免去网页边框！<br>
+          • <strong>Android (Chrome)</strong>: 点击右上角菜单「⋮」➔ 选择「添加到主屏幕」或「安装应用」。
+        </p>
+      </div>
+    </section>
+
+    <!-- ================= 页面 4: 设置 (AI 引擎配置) ================= -->
+    <section id="tab-settings" class="tab-page space-y-4 hidden">
+      <!-- 醒目的 AI 激活状态卡片 -->
+      <div id="ai-active-card" class="bg-gradient-to-r from-emerald-600 to-teal-600 rounded-2xl p-4 text-white shadow-sm flex items-center justify-between">
+        <div class="flex items-center space-x-3">
+          <div class="w-10 h-10 rounded-xl bg-white/20 backdrop-blur-sm flex items-center justify-center text-xl">
+            🤖
+          </div>
+          <div>
+            <div class="text-xs font-medium text-emerald-100 flex items-center">
+              <span class="w-2 h-2 rounded-full bg-emerald-300 animate-pulse mr-1.5"></span>
+              AI 智能引擎在线
+            </div>
+            <div id="ai-status-title" class="font-bold text-sm">硅基流动 · Qwen 大模型已激活</div>
+          </div>
+        </div>
+        <span class="px-2.5 py-1 bg-white/20 rounded-full text-[11px] font-semibold border border-white/20">
+          工作中
+        </span>
+      </div>
+
+      <div class="bg-white rounded-2xl p-4 border border-slate-200 shadow-sm space-y-3">
+        <div class="flex items-center justify-between border-b pb-2">
+          <div class="flex items-center space-x-2">
+            <i data-lucide="cpu" class="w-4 h-4 text-emerald-600"></i>
+            <h3 class="font-bold text-sm text-slate-800">API 连接参数详情</h3>
+          </div>
+          <span id="current-key-status" class="text-[11px] text-emerald-700 font-bold bg-emerald-50 px-2 py-0.5 rounded-full border border-emerald-200">
+            已生效
+          </span>
+        </div>
+
+        <div class="space-y-3 text-xs">
+          <div>
+            <label class="block font-semibold text-slate-600 mb-1">接口地址 (Base URL)</label>
+            <input type="text" id="setting-base-url" placeholder="https://api.siliconflow.cn/v1" class="w-full p-2.5 text-sm bg-slate-50 border border-slate-200 rounded-lg outline-none font-mono text-slate-700">
+          </div>
+
+          <div>
+            <label class="block font-semibold text-slate-600 mb-1">API 密钥 (API Key)</label>
+            <input type="text" id="setting-api-key" placeholder="sk-..." class="w-full p-2.5 text-sm bg-slate-50 border border-slate-200 rounded-lg outline-none font-mono text-slate-700">
+            <span class="text-[11px] text-slate-400 mt-0.5 block">已在后台安全加密保存，如需更换可输入新 Key</span>
+          </div>
+
+          <div>
+            <label class="block font-semibold text-slate-600 mb-1">模型名称 (Model)</label>
+            <input type="text" id="setting-model" placeholder="Qwen/Qwen2.5-7B-Instruct" class="w-full p-2.5 text-sm bg-slate-50 border border-slate-200 rounded-lg outline-none font-mono text-slate-700">
+          </div>
+
+          <button onclick="handleSaveSettings()" class="w-full py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white font-medium rounded-xl flex items-center justify-center space-x-1 shadow-sm">
+            <i data-lucide="save" class="w-4 h-4"></i>
+            <span>保存修改</span>
+          </button>
+        </div>
+      </div>
+
+      <!-- 🌰 坚果云网盘云端同步卡片 -->
+      <div class="bg-white rounded-2xl p-4 border border-slate-200 shadow-sm space-y-3">
+        <div class="flex items-center justify-between border-b pb-2">
+          <div class="flex items-center space-x-2">
+            <span class="text-base">🌰</span>
+            <div>
+              <h3 class="font-bold text-sm text-slate-800">坚果云网盘云端同步 (WebDAV)</h3>
+              <p class="text-[10px] text-slate-400">现场录入自动推送到坚果云，多端秒级备份</p>
+            </div>
+          </div>
+          <span id="jgy-badge-status" class="text-[11px] text-slate-500 font-bold bg-slate-100 px-2 py-0.5 rounded-full border border-slate-200">
+            未配置
+          </span>
+        </div>
+
+        <div class="space-y-3 text-xs">
+          <!-- 开启开关 -->
+          <div class="flex items-center justify-between bg-slate-50 p-2.5 rounded-xl border border-slate-200">
+            <div>
+              <div class="font-bold text-slate-700">启用坚果云同步</div>
+              <div class="text-[10px] text-slate-400">开启后支持一键或自动同步到网盘</div>
+            </div>
+            <label class="relative inline-flex items-center cursor-pointer">
+              <input type="checkbox" id="jgy-enabled" class="sr-only peer" onchange="toggleJgyEnabledUI()">
+              <div class="w-11 h-6 bg-slate-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-emerald-600"></div>
+            </label>
+          </div>
+
+          <!-- 自动同步开关 -->
+          <div class="flex items-center justify-between bg-slate-50 p-2.5 rounded-xl border border-slate-200">
+            <div>
+              <div class="font-bold text-slate-700">现场录入自动同步</div>
+              <div class="text-[10px] text-slate-400">每次保存或修改工厂，后台自动推送到网盘</div>
+            </div>
+            <label class="relative inline-flex items-center cursor-pointer">
+              <input type="checkbox" id="jgy-auto-sync" checked class="sr-only peer">
+              <div class="w-11 h-6 bg-slate-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-emerald-600"></div>
+            </label>
+          </div>
+
+          <div>
+            <label class="block font-semibold text-slate-600 mb-1">坚果云账号 (注册邮箱)</label>
+            <input type="email" id="jgy-account" placeholder="例如: your_name@163.com" class="w-full p-2.5 text-sm bg-slate-50 border border-slate-200 rounded-lg outline-none text-slate-700 font-mono">
+          </div>
+
+          <div>
+            <div class="flex items-center justify-between mb-1">
+              <label class="font-semibold text-slate-600">应用授权密码 (16位专用密码)</label>
+              <button type="button" onclick="toggleJgyHelp()" class="text-emerald-600 hover:text-emerald-700 text-[11px] flex items-center">
+                <i data-lucide="help-circle" class="w-3.5 h-3.5 mr-0.5"></i>如何获取应用密码？
+              </button>
+            </div>
+            <input type="text" id="jgy-password" placeholder="填写坚果云生成的16位应用密码" class="w-full p-2.5 text-sm bg-slate-50 border border-slate-200 rounded-lg outline-none font-mono text-slate-700">
+            <span class="text-[11px] text-amber-600 mt-1 block">⚠️ 提示：必须填坚果云网页版“安全选项”里生成的 16 位密码（不是平时登录密码）。</span>
+          </div>
+
+          <!-- 获取应用密码折叠指引 -->
+          <div id="jgy-help-box" class="bg-amber-50 border border-amber-200 rounded-xl p-3 text-[11px] text-amber-800 space-y-1.5 hidden">
+            <div class="font-bold text-amber-900 flex items-center">
+              <i data-lucide="info" class="w-3.5 h-3.5 mr-1 text-amber-700"></i>
+              获取坚果云 16 位应用密码简要步骤：
+            </div>
+            <p>1. 打开坚果云官网（<a href="https://www.jianguoyun.com" target="_blank" class="underline text-amber-900 font-semibold">jianguoyun.com</a>）登录；</p>
+            <p>2. 点击右上角【账户信息】 ➔ 选择【安全选项】；</p>
+            <p>3. 找到【第三方应用管理】 ➔ 点击【添加应用密码】；</p>
+            <p>4. 应用名称填“无花果录入”，点击生成，将出现的 16 位密码复制粘贴到上方即可！</p>
+          </div>
+
+          <div>
+            <label class="block font-semibold text-slate-600 mb-1">网盘备份目录 (坚果云根目录下)</label>
+            <input type="text" id="jgy-dir" value="/无花果供应商档案" class="w-full p-2.5 text-sm bg-slate-50 border border-slate-200 rounded-lg outline-none font-mono text-slate-700">
+          </div>
+
+          <div class="grid grid-cols-2 gap-2 pt-1">
+            <button onclick="testJgyConnection()" id="btn-jgy-test" class="py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 font-medium rounded-xl flex items-center justify-center space-x-1 border border-slate-200">
+              <i data-lucide="plug" class="w-4 h-4"></i>
+              <span>测试连接</span>
+            </button>
+            <button onclick="saveJgySettings()" id="btn-jgy-save" class="py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white font-medium rounded-xl flex items-center justify-center space-x-1 shadow-sm">
+              <i data-lucide="check" class="w-4 h-4"></i>
+              <span>保存配置</span>
+            </button>
+          </div>
+
+          <div class="pt-2 border-t border-slate-100">
+            <button onclick="syncAllToJgy()" id="btn-jgy-syncall" class="w-full py-2.5 bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-600 hover:to-orange-600 text-white font-medium rounded-xl flex items-center justify-center space-x-1.5 shadow-sm">
+              <i data-lucide="cloud-upload" class="w-4 h-4"></i>
+              <span>立即全量同步所有工厂档案至坚果云</span>
+            </button>
+          </div>
+        </div>
+      </div>
+    </section>
+
+  </main>
+
+  <!-- 底部固定导航栏 (Native Mobile Nav) -->
+  <nav class="fixed bottom-0 left-0 right-0 bg-white/95 backdrop-blur-md border-t border-slate-200 z-30 pb-safe">
+    <div class="max-w-md mx-auto grid grid-cols-4 py-2 px-1 text-center">
+      <button onclick="switchTab('tab-record')" id="nav-btn-record" class="nav-item flex flex-col items-center text-emerald-700 transition">
+        <i data-lucide="wand-2" class="w-5 h-5 mb-0.5"></i>
+        <span class="text-[11px] font-semibold">碎片录入</span>
+      </button>
+
+      <button onclick="switchTab('tab-list')" id="nav-btn-list" class="nav-item flex flex-col items-center text-slate-400 hover:text-slate-600 transition">
+        <i data-lucide="building-2" class="w-5 h-5 mb-0.5"></i>
+        <span class="text-[11px] font-medium">供应商库</span>
+      </button>
+
+      <button onclick="switchTab('tab-export')" id="nav-btn-export" class="nav-item flex flex-col items-center text-slate-400 hover:text-slate-600 transition">
+        <i data-lucide="bar-chart-3" class="w-5 h-5 mb-0.5"></i>
+        <span class="text-[11px] font-medium">统计导出</span>
+      </button>
+
+      <button onclick="switchTab('tab-settings')" id="nav-btn-settings" class="nav-item flex flex-col items-center text-slate-400 hover:text-slate-600 transition">
+        <i data-lucide="settings-2" class="w-5 h-5 mb-0.5"></i>
+        <span class="text-[11px] font-medium">引擎设置</span>
+      </button>
+    </div>
+  </nav>
+
+  <!-- 查看/编辑弹窗 (Modal) -->
+  <div id="detail-modal" class="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-end sm:items-center justify-center hidden">
+    <div class="bg-white w-full max-w-md max-h-[88vh] rounded-t-3xl sm:rounded-2xl flex flex-col overflow-hidden animate-in slide-in-from-bottom duration-200">
+      <div class="p-3.5 border-b flex items-center justify-between bg-slate-50">
+        <div class="flex items-center space-x-2">
+          <h3 id="modal-title" class="font-bold text-sm text-slate-800">供应商详细档案</h3>
+          <span id="modal-status-badge" class="px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-100 text-emerald-800 border border-emerald-300">已考察</span>
+        </div>
+        <div class="flex items-center space-x-2">
+          <button id="modal-btn-toggle-status" onclick="toggleSupplierStatusFromModal()" class="px-2.5 py-1 rounded-lg text-xs font-medium border border-amber-300 bg-amber-50 hover:bg-amber-100 text-amber-800 transition flex items-center shadow-xs">
+            <i data-lucide="rotate-ccw" class="w-3 h-3 mr-1"></i>
+            <span id="modal-btn-toggle-status-text">退回到待拜访</span>
+          </button>
+          <button onclick="closeModal()" class="w-7 h-7 rounded-full bg-slate-200 hover:bg-slate-300 flex items-center justify-center text-slate-600">
+            ✕
+          </button>
+        </div>
+      </div>
+
+      <div class="p-4 overflow-y-auto space-y-3 text-xs flex-1">
+        <input type="hidden" id="modal-id">
+        <div>
+          <label class="block font-semibold text-slate-600 mb-1">公司/工厂全称</label>
+          <input type="text" id="modal-company-name" class="w-full p-2 text-sm bg-slate-50 border rounded-lg font-bold">
+        </div>
+        <div class="grid grid-cols-2 gap-2">
+          <div>
+            <label class="block font-semibold text-slate-600 mb-1">地理位置</label>
+            <input type="text" id="modal-location" class="w-full p-2 bg-slate-50 border rounded-lg">
+          </div>
+          <div>
+            <label class="block font-semibold text-slate-600 mb-1">合作意向</label>
+            <select id="modal-intent" class="w-full p-2 bg-slate-50 border rounded-lg">
+              <option value="高">🔥 高意向</option>
+              <option value="中">⚡ 中等意向</option>
+              <option value="低">❄️ 低意向</option>
+            </select>
+          </div>
+        </div>
+        <div>
+          <label class="block font-semibold text-slate-600 mb-1">工厂规模 / 产能说明</label>
+          <input type="text" id="modal-scale" class="w-full p-2 bg-slate-50 border rounded-lg">
+        </div>
+        <div>
+          <label class="block font-semibold text-slate-600 mb-1">主营产品</label>
+          <input type="text" id="modal-main-products" class="w-full p-2 bg-slate-50 border rounded-lg">
+        </div>
+        <div>
+          <label class="block font-semibold text-slate-600 mb-1">优势 / 核心拳头品</label>
+          <input type="text" id="modal-advantage-products" class="w-full p-2 bg-slate-50 border rounded-lg text-emerald-700 font-semibold">
+        </div>
+        <div>
+          <label class="block font-semibold text-slate-600 mb-1">供货价格 / 多品类报价清单</label>
+          <textarea id="modal-price" rows="2" class="w-full p-2 bg-slate-50 border rounded-lg text-slate-800 font-medium"></textarea>
+        </div>
+        <div>
+          <label class="block font-semibold text-slate-600 mb-1">账期与结算</label>
+          <input type="text" id="modal-payment" class="w-full p-2 bg-slate-50 border rounded-lg text-slate-800 font-medium">
+        </div>
+        <div class="grid grid-cols-3 gap-2">
+          <div>
+            <label class="block font-semibold text-slate-600 mb-1">联系人</label>
+            <input type="text" id="modal-contact-name" class="w-full p-2 bg-slate-50 border rounded-lg">
+          </div>
+          <div>
+            <label class="block font-semibold text-slate-600 mb-1">职务</label>
+            <input type="text" id="modal-contact-role" class="w-full p-2 bg-slate-50 border rounded-lg">
+          </div>
+          <div>
+            <label class="block font-semibold text-slate-600 mb-1">联系电话</label>
+            <input type="text" id="modal-contact-phone" class="w-full p-2 bg-slate-50 border rounded-lg text-blue-600">
+          </div>
+        </div>
+        <div>
+          <label class="block font-semibold text-slate-600 mb-1">考察备忘 / 关键特征</label>
+          <textarea id="modal-extra-notes" rows="2" class="w-full p-2 bg-slate-50 border rounded-lg"></textarea>
+        </div>
+
+        <!-- 详情弹窗中的照片管理 -->
+        <div class="border-t border-slate-100 pt-2 space-y-2">
+          <label class="font-semibold text-slate-700 flex items-center">
+            <i data-lucide="image" class="w-4 h-4 mr-1 text-emerald-600"></i>
+            实地照片 / 名片
+          </label>
+          <div id="modal-photo-grid" class="grid grid-cols-3 gap-2">
+            <!-- 动态渲染照片与追加按钮 -->
+          </div>
+        </div>
+
+        <div id="modal-raw-container" class="bg-slate-100 p-2.5 rounded-lg border text-slate-500 text-[11px]">
+          <span class="font-semibold block text-slate-600 mb-0.5">原始拜访随笔：</span>
+          <p id="modal-raw-notes" class="whitespace-pre-wrap"></p>
+        </div>
+      </div>
+
+      <div class="p-3 border-t bg-slate-50 flex items-center space-x-2">
+        <a id="modal-export-btn" href="#" download class="px-2.5 py-2 bg-emerald-50 hover:bg-emerald-100 text-emerald-800 font-medium rounded-xl text-xs flex items-center justify-center border border-emerald-300">
+          <i data-lucide="file-spreadsheet" class="w-3.5 h-3.5 mr-1 text-emerald-600"></i>
+          <span>导出</span>
+        </a>
+        <button id="modal-jgy-btn" onclick="syncCurrentModalToJgy()" class="px-2.5 py-2 bg-amber-50 hover:bg-amber-100 text-amber-800 font-medium rounded-xl text-xs flex items-center justify-center border border-amber-300" title="同步此家档案至坚果云">
+          <span class="mr-1 text-xs">🌰</span>
+          <span>同步网盘</span>
+        </button>
+        <button onclick="saveModalChanges()" class="flex-1 py-2 bg-emerald-600 hover:bg-emerald-700 text-white font-medium rounded-xl text-xs flex items-center justify-center space-x-1">
+          <i data-lucide="check" class="w-4 h-4"></i>
+          <span>保存修改</span>
+        </button>
+        <button onclick="deleteCurrentSupplier()" class="px-2.5 py-2 bg-rose-50 hover:bg-rose-100 text-rose-600 font-medium rounded-xl text-xs flex items-center justify-center space-x-1">
+          <i data-lucide="trash-2" class="w-3.5 h-3.5"></i>
+          <span>删除</span>
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Toast 消息提示组件 -->
+  <div id="toast" class="fixed top-16 left-1/2 transform -translate-x-1/2 bg-slate-900/90 text-white text-xs px-4 py-2 rounded-full shadow-lg pointer-events-none transition-opacity duration-300 opacity-0 z-50"></div>
+
+  <!-- 二维码弹窗 -->
+  <div id="qr-modal" class="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center hidden p-4" onclick="toggleQrModal()">
+    <div class="bg-white rounded-3xl p-6 max-w-xs w-full text-center space-y-4 shadow-xl" onclick="event.stopPropagation()">
+      <div class="flex items-center justify-between">
+        <h3 class="font-bold text-sm text-slate-800">手机扫码直接打开</h3>
+        <button onclick="toggleQrModal()" class="w-6 h-6 rounded-full bg-slate-100 flex items-center justify-center text-slate-400">✕</button>
+      </div>
+      <div class="p-3 bg-slate-50 rounded-2xl border border-slate-100 flex justify-center">
+        <img src="/static/qrcode.svg" alt="手机扫码" class="w-48 h-48 rounded-lg">
+      </div>
+      <div class="space-y-1">
+        <p class="text-xs font-semibold text-emerald-800">http://192.168.2.117:8000</p>
+        <p class="text-[11px] text-slate-400">手机连上同一 Wi-Fi 后，用微信或自带相机扫码</p>
+      </div>
+      <button onclick="toggleQrModal()" class="w-full py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl text-xs font-medium">关闭</button>
+    </div>
+  </div>
+
+  <!-- 图片全屏大图预览弹窗 (Lightbox) -->
+  <div id="image-lightbox" class="fixed inset-0 bg-black/90 z-50 flex items-center justify-center hidden p-2" onclick="closeLightbox()">
+    <img id="lightbox-img" src="" alt="大图预览" class="max-w-full max-h-[90vh] object-contain rounded-lg">
+    <button onclick="closeLightbox()" class="absolute top-4 right-4 w-9 h-9 rounded-full bg-white/20 hover:bg-white/40 text-white flex items-center justify-center text-lg">✕</button>
+  </div>
+
+  <!-- 新增待拜访行程弹窗 (Plan Modal) -->
+  <!-- 规划待拜访工厂弹窗 (支持新增与修改) -->
+  <div id="plan-modal" class="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-end sm:items-center justify-center hidden p-0 sm:p-4">
+    <div class="bg-white w-full max-w-md rounded-t-3xl sm:rounded-2xl p-5 space-y-3.5 shadow-2xl animate-in slide-in-from-bottom duration-200">
+      <div class="flex items-center justify-between border-b pb-2.5">
+        <div class="flex items-center space-x-2">
+          <span class="text-xl">📅</span>
+          <div>
+            <h3 id="plan-modal-title" class="font-bold text-sm text-slate-800">规划待拜访工厂</h3>
+            <p id="plan-modal-subtitle" class="text-[11px] text-slate-400">提前备档，现场到达一键转录入</p>
+          </div>
+        </div>
+        <button onclick="closePlanModal()" class="w-7 h-7 rounded-full bg-slate-100 flex items-center justify-center text-slate-500">✕</button>
+      </div>
+
+      <input type="hidden" id="plan-id">
+
+      <div class="space-y-2.5 text-xs">
+        <div>
+          <label class="block font-semibold text-slate-700 mb-1">🏢 计划拜访工厂名称 *</label>
+          <input type="text" id="plan-company-name" placeholder="如：威海文登XX无花果加工基地" class="w-full p-2.5 bg-slate-50 border rounded-xl outline-none font-medium">
+        </div>
+
+        <div class="grid grid-cols-2 gap-2">
+          <div>
+            <label class="block font-semibold text-slate-700 mb-1">📅 预定拜访日期/时间</label>
+            <input type="text" id="plan-date" placeholder="如：明天上午10点 / 11-12" class="w-full p-2.5 bg-slate-50 border rounded-xl outline-none text-amber-700 font-medium">
+          </div>
+          <div>
+            <label class="block font-semibold text-slate-700 mb-1">📍 预定大致地址</label>
+            <input type="text" id="plan-location" placeholder="如：威海文登区葛家镇" class="w-full p-2.5 bg-slate-50 border rounded-xl outline-none">
+          </div>
+        </div>
+
+        <div class="grid grid-cols-2 gap-2">
+          <div>
+            <label class="block font-semibold text-slate-700 mb-1">👤 提前预约联系人</label>
+            <input type="text" id="plan-contact-name" placeholder="对接人姓名/称呼" class="w-full p-2.5 bg-slate-50 border rounded-xl outline-none">
+          </div>
+          <div>
+            <label class="block font-semibold text-slate-700 mb-1">📞 联系电话</label>
+            <input type="text" id="plan-contact-phone" placeholder="手机号/微信" class="w-full p-2.5 bg-slate-50 border rounded-xl outline-none text-blue-600 font-medium">
+          </div>
+        </div>
+
+        <div>
+          <label class="block font-semibold text-slate-700 mb-1">🎯 拜访目的 / 行前备忘</label>
+          <textarea id="plan-notes" rows="2" placeholder="如：朋友推荐，主要去考察其万吨冷库和热风烘干线，顺便带样品对比" class="w-full p-2.5 bg-slate-50 border rounded-xl outline-none"></textarea>
+        </div>
+      </div>
+
+      <div class="pt-2 flex space-x-2">
+        <button id="btn-save-plan" onclick="handleSavePlan()" class="flex-1 py-3 bg-amber-500 hover:bg-amber-600 active:bg-amber-700 text-white font-medium rounded-xl text-xs flex items-center justify-center space-x-1 shadow-sm">
+          <i data-lucide="calendar-plus" class="w-4 h-4"></i>
+          <span id="plan-btn-text">保存待拜访行程</span>
+        </button>
+        <button onclick="closePlanModal()" class="px-4 py-3 bg-slate-100 hover:bg-slate-200 text-slate-600 rounded-xl text-xs">
+          取消
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    function toggleQrModal() {
+      const m = document.getElementById("qr-modal");
+      m.classList.toggle("hidden");
+    }
+
+    function openLightbox(url) {
+      document.getElementById("lightbox-img").src = url;
+      document.getElementById("image-lightbox").classList.remove("hidden");
+    }
+
+    function closeLightbox() {
+      document.getElementById("image-lightbox").classList.add("hidden");
+    }
+
+    // 状态数据
+    let suppliersData = [];
+    let currentIntentFilter = '全部';
+    let currentListStatus = 'visited'; // 'visited' 已考察 | 'planned' 待拜访行程
+    let activePlannedId = null;       // 正在现场考察的待拜访工厂 ID
+    let currentRawExtracted = null;
+    let searchTimeout = null;
+    let currentPhotos = []; // 当前录入的照片 URL 列表
+    let modalPhotos = [];   // 详情弹窗中的照片列表
+
+    // 行程规划弹窗控制 (支持新增与修改)
+    function openPlanModal() {
+      document.getElementById("plan-id").value = "";
+      document.getElementById("plan-modal-title").innerText = "规划待拜访工厂";
+      document.getElementById("plan-modal-subtitle").innerText = "提前备档，现场到达一键转录入";
+      document.getElementById("plan-btn-text").innerText = "保存待拜访行程";
+      document.getElementById("plan-company-name").value = "";
+      document.getElementById("plan-date").value = "";
+      document.getElementById("plan-location").value = "";
+      document.getElementById("plan-contact-name").value = "";
+      document.getElementById("plan-contact-phone").value = "";
+      document.getElementById("plan-notes").value = "";
+      document.getElementById("plan-modal").classList.remove("hidden");
+    }
+
+    function openEditPlanModal(id) {
+      const item = suppliersData.find(x => x.id === id);
+      if (!item) return;
+      document.getElementById("plan-id").value = item.id;
+      document.getElementById("plan-modal-title").innerText = "编辑待拜访行程";
+      document.getElementById("plan-modal-subtitle").innerText = "修改计划时间、地址、联系人或备忘";
+      document.getElementById("plan-btn-text").innerText = "保存行程修改";
+      document.getElementById("plan-company-name").value = item.company_name || "";
+      document.getElementById("plan-date").value = item.plan_date || "";
+      document.getElementById("plan-location").value = item.location || "";
+      document.getElementById("plan-contact-name").value = item.contact_name || "";
+      document.getElementById("plan-contact-phone").value = item.contact_phone || "";
+      document.getElementById("plan-notes").value = item.plan_notes || item.extra_notes || "";
+      document.getElementById("plan-modal").classList.remove("hidden");
+    }
+
+    function closePlanModal() {
+      document.getElementById("plan-modal").classList.add("hidden");
+    }
+
+    // 保存待拜访行程 (支持新增与修改，保持 status=planned 不变)
+    async function handleSavePlan() {
+      const planId = document.getElementById("plan-id").value;
+      const company_name = document.getElementById("plan-company-name").value.trim();
+      if (!company_name) {
+        showToast("请填写工厂名称");
+        return;
+      }
+
+      const payload = {
+        company_name,
+        plan_date: document.getElementById("plan-date").value.trim(),
+        location: document.getElementById("plan-location").value.trim(),
+        contact_name: document.getElementById("plan-contact-name").value.trim(),
+        contact_phone: document.getElementById("plan-contact-phone").value.trim(),
+        plan_notes: document.getElementById("plan-notes").value.trim(),
+        extra_notes: document.getElementById("plan-notes").value.trim(),
+        status: "planned",
+        cooperation_intent: "中"
+      };
+
+      try {
+        let resp;
+        if (planId) {
+          resp = await fetch(`/api/suppliers/${planId}`, {
+            method: "PUT",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(payload)
+          });
+        } else {
+          resp = await fetch("/api/suppliers", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(payload)
+          });
+        }
+        const res = await resp.json();
+        if (res.status === "ok") {
+          showToast(planId ? "📅 待拜访行程已修改！" : "📅 已加入待拜访行程！");
+          closePlanModal();
+          switchListStatus("planned");
+          loadSuppliers();
+        } else {
+          showToast("保存失败: " + (res.message || "未知错误"));
+        }
+      } catch (e) {
+        showToast("保存行程失败");
+      }
+    }
+
+    // 切换已考察 vs 待拜访状态
+    function switchListStatus(status) {
+      currentListStatus = status;
+      const btnVisited = document.getElementById("btn-status-visited");
+      const btnPlanned = document.getElementById("btn-status-planned");
+      const addPlanBtn = document.getElementById("btn-add-plan");
+      const filterBox = document.getElementById("intent-filter-container");
+
+      if (status === "visited") {
+        btnVisited.className = "flex-1 py-2 rounded-xl bg-white text-emerald-800 shadow-xs flex items-center justify-center transition font-bold";
+        btnPlanned.className = "flex-1 py-2 rounded-xl text-slate-600 hover:text-slate-900 flex items-center justify-center transition";
+        addPlanBtn.classList.add("hidden");
+        filterBox.classList.remove("hidden");
+      } else {
+        btnPlanned.className = "flex-1 py-2 rounded-xl bg-white text-amber-900 shadow-xs flex items-center justify-center transition font-bold";
+        btnVisited.className = "flex-1 py-2 rounded-xl text-slate-600 hover:text-slate-900 flex items-center justify-center transition";
+        addPlanBtn.classList.remove("hidden");
+        filterBox.classList.add("hidden");
+      }
+
+      loadSuppliers(document.getElementById("search-input").value);
+    }
+
+    // GPS 现场定位
+    function getCurrentLocation() {
+      // 检查安全环境
+      if (location.protocol !== 'https:' && location.hostname !== 'localhost' && location.hostname !== '127.0.0.1') {
+        showToast("⚠️ 苹果浏览器要求在 HTTPS 网址下才能授权 GPS 定位");
+      }
+
+      if (!navigator.geolocation) {
+        showToast("当前手机浏览器不支持 GPS 定位");
+        return;
+      }
+
+      showToast("📡 正在获取手机 GPS 卫星定位...");
+
+      const options = {
+        enableHighAccuracy: true,
+        timeout: 6000,
+        maximumAge: 0
+      };
+
+      navigator.geolocation.getCurrentPosition(
+        async (pos) => {
+          const lat = pos.coords.latitude;
+          const lng = pos.coords.longitude;
+          const latEl = document.getElementById("field-lat");
+          const lngEl = document.getElementById("field-lng");
+          if (latEl) latEl.value = lat;
+          if (lngEl) lngEl.value = lng;
+
+          showToast("📍 定位坐标成功，正在获取门牌信息...");
+
+          // 备用方案：先直接把高精度的坐标填上，确保绝对不会空白
+          const locInput = document.getElementById("field-location");
+          if (locInput && !locInput.value) {
+            locInput.value = `北纬${lat.toFixed(4)}°, 东经${lng.toFixed(4)}°`;
+          }
+
+          try {
+            // 请求后端精准简体逆地理服务 (精确到门牌/村庄，100%纯简体字)
+            const resp = await fetch(`/api/geocode/reverse?lat=${lat}&lng=${lng}`);
+            const data = await resp.json();
+            if (data && data.status === "ok" && data.address) {
+              if (locInput) {
+                locInput.value = data.address;
+                showToast("📍 定位成功：" + data.address);
+                return;
+              }
+            }
+          } catch (e) {
+            console.warn("逆地理接口异常，保留坐标", e);
+          }
+          showToast("📍 已记录当前精准坐标！");
+          showToast("📍 已记录当前精准坐标！");
+        },
+        (err) => {
+          console.error("定位失败错误码:", err.code, err.message);
+          let errMsg = "定位失败：";
+          if (err.code === 1) {
+            errMsg += "请在手机设置中允许微信/浏览器的【位置权限】";
+          } else if (err.code === 2) {
+            errMsg += "GPS 信号弱，无法获取坐标";
+          } else if (err.code === 3) {
+            errMsg += "定位请求超时，请重试";
+          } else {
+            errMsg += err.message;
+          }
+          showToast(errMsg);
+        },
+        options
+      );
+    }
+
+    // 处理照片上传 (多图)
+    async function handlePhotoUpload(event, isModal = false) {
+      const files = event.target.files;
+      if (!files || files.length === 0) return;
+
+      showToast(`正在上传 ${files.length} 张照片...`);
+
+      for (let i = 0; i < files.length; i++) {
+        const file = files[i];
+        const formData = new FormData();
+        formData.append("file", file);
+
+        try {
+          const resp = await fetch("/api/upload", {
+            method: "POST",
+            body: formData
+          });
+          const res = await resp.json();
+          if (res.status === "ok") {
+            if (isModal) {
+              modalPhotos.push(res.url);
+              renderModalPhotos();
+            } else {
+              currentPhotos.push(res.url);
+              renderCurrentPhotos();
+            }
+          }
+        } catch (e) {
+          console.error("上传照片失败", e);
+        }
+      }
+      showToast("照片上传完成！");
+      event.target.value = "";
+    }
+
+    // 渲染录入页照片预览
+    function renderCurrentPhotos() {
+      const container = document.getElementById("photo-preview-grid");
+      const badge = document.getElementById("photo-count-badge");
+      badge.innerText = `已选 ${currentPhotos.length} 张`;
+
+      let html = currentPhotos.map((url, idx) => `
+        <div class="relative group rounded-xl overflow-hidden border border-slate-200 h-20 bg-slate-100">
+          <img src="${url}" class="w-full h-full object-cover cursor-pointer" onclick="openLightbox('${url}')">
+          <button onclick="removeCurrentPhoto(${idx})" class="absolute top-1 right-1 w-5 h-5 rounded-full bg-black/60 text-white flex items-center justify-center text-xs">✕</button>
+        </div>
+      `).join("");
+
+      // 添加按钮
+      html += `
+        <label class="border-2 border-dashed border-slate-200 hover:border-emerald-400 bg-slate-50 hover:bg-emerald-50/30 rounded-xl h-20 flex flex-col items-center justify-center cursor-pointer transition text-slate-400 hover:text-emerald-600">
+          <i data-lucide="plus" class="w-5 h-5 mb-0.5"></i>
+          <span class="text-[10px]">拍照/相册</span>
+          <input type="file" accept="image/*" multiple class="hidden" onchange="handlePhotoUpload(event, false)">
+        </label>
+      `;
+
+      container.innerHTML = html;
+      lucide.createIcons();
+    }
+
+    function removeCurrentPhoto(idx) {
+      currentPhotos.splice(idx, 1);
+      renderCurrentPhotos();
+    }
+
+    // 渲染详情页照片
+    function renderModalPhotos() {
+      const container = document.getElementById("modal-photo-grid");
+      if (!container) return;
+
+      let html = modalPhotos.map((url, idx) => `
+        <div class="relative group rounded-xl overflow-hidden border border-slate-200 h-20 bg-slate-100">
+          <img src="${url}" class="w-full h-full object-cover cursor-pointer" onclick="openLightbox('${url}')">
+          <button onclick="removeModalPhoto(${idx})" class="absolute top-1 right-1 w-5 h-5 rounded-full bg-black/60 text-white flex items-center justify-center text-xs">✕</button>
+        </div>
+      `).join("");
+
+      html += `
+        <label class="border-2 border-dashed border-slate-200 hover:border-emerald-400 bg-slate-50 hover:bg-emerald-50/30 rounded-xl h-20 flex flex-col items-center justify-center cursor-pointer transition text-slate-400 hover:text-emerald-600">
+          <i data-lucide="plus" class="w-5 h-5 mb-0.5"></i>
+          <span class="text-[10px]">补拍/追加</span>
+          <input type="file" accept="image/*" multiple class="hidden" onchange="handlePhotoUpload(event, true)">
+        </label>
+      `;
+
+      container.innerHTML = html;
+      lucide.createIcons();
+    }
+
+    function removeModalPhoto(idx) {
+      modalPhotos.splice(idx, 1);
+      renderModalPhotos();
+    }
+
+    // 提示通知
+    function showToast(msg) {
+      const t = document.getElementById("toast");
+      t.innerText = msg;
+      t.classList.remove("opacity-0");
+      t.classList.add("opacity-100");
+      setTimeout(() => {
+        t.classList.remove("opacity-100");
+        t.classList.add("opacity-0");
+      }, 2200);
+    }
+
+    // 标签页切换
+    function switchTab(tabId) {
+      document.querySelectorAll(".tab-page").forEach(el => el.classList.add("hidden"));
+      document.getElementById(tabId).classList.remove("hidden");
+
+      // 更新导航高亮
+      document.querySelectorAll(".nav-item").forEach(el => {
+        el.classList.remove("text-emerald-700");
+        el.classList.add("text-slate-400");
+        el.querySelector("span").classList.remove("font-semibold");
+        el.querySelector("span").classList.add("font-medium");
+      });
+
+      const activeNavBtn = document.getElementById(`nav-btn-${tabId.replace("tab-", "")}`);
+      if (activeNavBtn) {
+        activeNavBtn.classList.remove("text-slate-400");
+        activeNavBtn.classList.add("text-emerald-700");
+        activeNavBtn.querySelector("span").classList.add("font-semibold");
+      }
+
+      if (tabId === "tab-list") {
+        loadSuppliers();
+      } else if (tabId === "tab-export") {
+        updateStats();
+      } else if (tabId === "tab-settings") {
+        loadSettings();
+        loadJgySettings();
+      }
+      lucide.createIcons();
+      window.scrollTo({ top: 0, behavior: "smooth" });
+    }
+
+    function updateCharCount() {
+      const val = document.getElementById("raw-input").value;
+      document.getElementById("char-count").innerText = `${val.length} 字`;
+    }
+
+    // 快速填充实战无花果示例
+    const SAMPLES = {
+      1: "今天上午去了威海荣成紫果无花果农业专业合作社，对接的李建国李总，电话13863128910。老李人很实在，他们在荣成有自有种植基地1200亩，主要是波姬红品种，日加工鲜果15吨左右。主营波姬红鲜果、无花果干果脯，还有速冻果块。最拿手的是高糖度特级鲜果和纯天然无添加果脯。特级鲜果报价18元/斤，二级果脯32元/公斤。账期方面说首单得现结，后面熟了可以月结30天。合作意向很高，有冷链车直发各大仓。",
+      2: "考察了四川内江威远金果源生物科技，在威远经开区，占地50多亩。有2条大型真空冻干生产线，年产能800吨。主要做无花果冻干片、冻干全果、无花果浓缩原浆。他们的冻干整果形态极佳，原浆纯度很高，很多新茶饮和烘焙品牌都找他们代工。报价：冻干整果85元/kg，原浆24元/kg。付款要求30%定金，发货前结清。接待人是销售总监张雪梅18980231566，研发能力很扎实，意向强烈。",
+      3: "新疆阿图什绿洲果品加工厂，找阿不都热依木厂长13999451122。新疆老牌工厂，年加工2000吨阿图什早黄果，主要做传统挂树黄干果、无花果茶、果酱。黄干果特选45元/公斤，品质极甜。要求现款现货提货付款。整体属于原料供应型，包装偏传统，意向中等。"
+    };
+
+    function fillSample(id) {
+      document.getElementById("raw-input").value = SAMPLES[id];
+      updateCharCount();
+      showToast("已填入拜访考察示例");
+    }
+
+    // 调用智能提取接口
+    async function handleExtract() {
+      const text = document.getElementById("raw-input").value.trim();
+      if (!text) {
+        showToast("请先输入或粘贴碎片记录");
+        return;
+      }
+
+      const btn = document.getElementById("btn-extract");
+      const btnText = document.getElementById("btn-extract-text");
+      btn.disabled = true;
+      btnText.innerText = "智能分析提取中...";
+
+      try {
+        const resp = await fetch("/api/extract", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ text })
+        });
+        const res = await resp.json();
+
+        if (res.status === "ok") {
+          currentRawExtracted = res.data;
+          // 填入表单
+          document.getElementById("field-company-name").value = res.data.company_name || "";
+          document.getElementById("field-location").value = res.data.location || "";
+          document.getElementById("field-cooperation-intent").value = res.data.cooperation_intent || "中";
+          document.getElementById("field-scale").value = res.data.scale || "";
+          document.getElementById("field-main-products").value = res.data.main_products || "";
+          document.getElementById("field-advantage-products").value = res.data.advantage_products || "";
+          document.getElementById("field-price-terms").value = res.data.price_terms || "";
+          document.getElementById("field-payment-terms").value = res.data.payment_terms || "";
+          document.getElementById("field-contact-name").value = res.data.contact_name || "";
+          document.getElementById("field-contact-role").value = res.data.contact_role || "";
+          document.getElementById("field-contact-phone").value = res.data.contact_phone || "";
+          document.getElementById("field-extra-notes").value = res.data.extra_notes || "";
+
+          const formBox = document.getElementById("form-container");
+          formBox.classList.remove("hidden");
+          formBox.scrollIntoView({ behavior: "smooth" });
+          showToast("提取完成！请核对信息");
+        } else {
+          showToast("提取失败：" + (res.detail || "请检查内容"));
+        }
+      } catch (err) {
+        console.error(err);
+        showToast("网络请求异常");
+      } finally {
+        btn.disabled = false;
+        btnText.innerText = "AI 智能提取结构化信息";
+      }
+    }
+
+    function resetExtractForm() {
+      document.getElementById("form-container").classList.add("hidden");
+      document.getElementById("raw-input").value = "";
+      currentPhotos = [];
+      renderCurrentPhotos();
+      updateCharCount();
+    }
+
+    // 保存到供应商档案库
+    async function handleSaveSupplier() {
+      const getVal = (id) => {
+        const el = document.getElementById(id);
+        return el ? (el.value || "").trim() : "";
+      };
+
+      const company_name = getVal("field-company-name");
+      if (!company_name) {
+        showToast("请填写公司/工厂名称");
+        const compEl = document.getElementById("field-company-name");
+        if (compEl) compEl.focus();
+        return;
+      }
+
+      const latEl = document.getElementById("field-lat");
+      const lngEl = document.getElementById("field-lng");
+      const latVal = (latEl && latEl.value) ? parseFloat(latEl.value) : null;
+      const lngVal = (lngEl && lngEl.value) ? parseFloat(lngEl.value) : null;
+
+      const payload = {
+        company_name,
+        location: getVal("field-location"),
+        cooperation_intent: getVal("field-cooperation-intent") || "中",
+        scale: getVal("field-scale"),
+        main_products: getVal("field-main-products"),
+        advantage_products: getVal("field-advantage-products"),
+        price_terms: getVal("field-price-terms"),
+        payment_terms: getVal("field-payment-terms"),
+        contact_name: getVal("field-contact-name"),
+        contact_role: getVal("field-contact-role"),
+        contact_phone: getVal("field-contact-phone"),
+        raw_notes: getVal("raw-input"),
+        extra_notes: getVal("field-extra-notes"),
+        images: JSON.stringify(currentPhotos || []),
+        latitude: isNaN(latVal) ? null : latVal,
+        longitude: isNaN(lngVal) ? null : lngVal,
+        status: "visited" // 只要实地录入保存，自动升级为已考察
+      };
+
+      try {
+        let url = "/api/suppliers";
+        let method = "POST";
+        if (activePlannedId) {
+          url = `/api/suppliers/${activePlannedId}`;
+          method = "PUT";
+        }
+
+        const resp = await fetch(url, {
+          method: method,
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(payload)
+        });
+        const res = await resp.json();
+        if (res.status === "ok") {
+          showToast(activePlannedId ? "🎉 现场考察完成，已正式归档入库！" : "🎉 档案已成功入库！");
+          activePlannedId = null;
+          resetExtractForm();
+          // 自动跳转到已拜访供应商列表
+          setTimeout(() => {
+            switchListStatus("visited");
+            switchTab("tab-list");
+          }, 400);
+        } else {
+          showToast("保存失败：" + (res.detail || "接口返回错误"));
+        }
+      } catch (err) {
+        console.error("保存失败详情:", err);
+        showToast("保存请求异常，请重试");
+      }
+    }
+
+    // 从待拜访行程启动现场考察录入
+    function startInspectFromPlan(id) {
+      const item = suppliersData.find(x => x.id === id);
+      if (!item) return;
+
+      activePlannedId = id;
+      // 切换到录入标签
+      switchTab("tab-record");
+
+      // 预填已知的信息
+      document.getElementById("field-company-name").value = item.company_name || "";
+      document.getElementById("field-location").value = item.location || "";
+      document.getElementById("field-contact-name").value = item.contact_name || "";
+      document.getElementById("field-contact-role").value = item.contact_role || "";
+      document.getElementById("field-contact-phone").value = item.contact_phone || "";
+      document.getElementById("field-extra-notes").value = item.plan_notes ? `【行前备忘】${item.plan_notes}` : "";
+
+      const formBox = document.getElementById("form-container");
+      formBox.classList.remove("hidden");
+      formBox.scrollIntoView({ behavior: "smooth" });
+
+      showToast(`🎯 已载入【${item.company_name}】，现场补充报价或拍照即可入库！`);
+    }
+
+    // 加载供应商列表
+    async function loadSuppliers(searchTerm = "") {
+      try {
+        let url = `/api/suppliers?status=${currentListStatus}`;
+        if (searchTerm) url += `&search=${encodeURIComponent(searchTerm)}`;
+        if (currentListStatus === 'visited' && currentIntentFilter !== '全部') {
+          url += `&intent=${encodeURIComponent(currentIntentFilter)}`;
+        }
+
+        const resp = await fetch(url);
+        const res = await resp.json();
+        if (res.status === "ok") {
+          suppliersData = res.data;
+          if (currentListStatus === "planned") {
+            renderPlannedCards(suppliersData);
+          } else {
+            renderSupplierCards(suppliersData);
+          }
+          updateIntentCounts();
+        }
+      } catch (e) {
+        console.error(e);
+      }
+    }
+
+    // 渲染待拜访行程卡片 (Planned Cards)
+    function renderPlannedCards(list) {
+      const container = document.getElementById("supplier-cards");
+      if (!list || list.length === 0) {
+        container.innerHTML = `
+          <div class="bg-white rounded-2xl p-8 text-center border border-slate-200 space-y-2">
+            <div class="text-3xl">📅</div>
+            <div class="text-xs font-semibold text-slate-700">暂无待拜访行程规划</div>
+            <p class="text-[11px] text-slate-400">出差前可点击右上角「+ 加行程」提前备档</p>
+          </div>
+        `;
+        return;
+      }
+
+      container.innerHTML = list.map(item => `
+        <div class="bg-white rounded-2xl p-4 shadow-sm border border-amber-200/80 hover:border-amber-400 transition space-y-2.5">
+          <div class="flex items-start justify-between">
+            <div class="flex-1 pr-2">
+              <div class="flex items-center space-x-1.5 mb-1">
+                <span class="px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-100 text-amber-900 border border-amber-300 flex items-center">
+                  <i data-lucide="clock" class="w-2.5 h-2.5 mr-1"></i>计划: ${escapeHtml(item.plan_date || '未定时间')}
+                </span>
+              </div>
+              <h4 class="font-bold text-sm text-slate-900 leading-snug">${escapeHtml(item.company_name)}</h4>
+              <p class="text-xs text-slate-500 mt-1 flex items-center">
+                <i data-lucide="map-pin" class="w-3 h-3 mr-1 text-slate-400 flex-shrink-0"></i>
+                ${escapeHtml(item.location || '待定地址')}
+              </p>
+            </div>
+            ${item.location ? `
+              <a href="https://uri.amap.com/marker?name=${encodeURIComponent(item.company_name)}&address=${encodeURIComponent(item.location)}" target="_blank" class="px-2 py-1 rounded-lg bg-blue-50 text-blue-700 text-xs font-medium flex items-center border border-blue-200 flex-shrink-0">
+                <i data-lucide="navigation" class="w-3 h-3 mr-0.5"></i>路线
+              </a>
+            ` : ''}
+          </div>
+
+          <!-- 行前备忘 / 考察目的 -->
+          ${(item.plan_notes || item.extra_notes) ? `
+            <div class="bg-amber-50/70 border border-amber-100 rounded-lg p-2 text-xs text-amber-950">
+              <strong class="text-amber-800">🎯 考察目的：</strong>${escapeHtml(item.plan_notes || item.extra_notes)}
+            </div>
+          ` : ''}
+
+          <!-- 底部联系人与一键开拔录入 -->
+          <div class="border-t border-slate-100 pt-2.5 flex items-center justify-between text-xs">
+            <div class="flex items-center text-slate-700">
+              <i data-lucide="user" class="w-3.5 h-3.5 mr-1 text-slate-400"></i>
+              <span class="font-medium mr-1.5">${escapeHtml(item.contact_name || '未填对接人')}</span>
+              ${item.contact_phone ? `
+                <a href="tel:${escapeHtml(item.contact_phone)}" class="text-blue-600 hover:underline flex items-center font-medium">
+                  <i data-lucide="phone" class="w-3 h-3 mr-0.5"></i>${escapeHtml(item.contact_phone)}
+                </a>
+              ` : ''}
+            </div>
+
+            <div class="flex items-center space-x-1.5">
+              <button onclick="openEditPlanModal(${item.id})" class="px-2.5 py-1.5 rounded-lg bg-amber-50 hover:bg-amber-100 text-amber-900 font-medium text-xs border border-amber-300 flex items-center shadow-xs">
+                <i data-lucide="edit-3" class="w-3 h-3 mr-1 text-amber-600"></i>编辑行程
+              </button>
+              <button onclick="deleteCurrentSupplierDirect(${item.id})" class="px-2 py-1.5 text-slate-400 hover:text-rose-600 text-xs">
+                删除
+              </button>
+              <button onclick="startInspectFromPlan(${item.id})" class="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 active:bg-emerald-800 text-white font-medium rounded-xl text-xs flex items-center shadow-xs">
+                <i data-lucide="pencil" class="w-3 h-3 mr-1"></i>现场考察录入
+              </button>
+            </div>
+          </div>
+        </div>
+      `).join("");
+
+      lucide.createIcons();
+    }
+
+    // 意向度徽章样式
+    function getIntentBadge(intent) {
+      if (intent === "高") {
+        return `<span class="px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-100 text-emerald-800 border border-emerald-300">🔥 高意向</span>`;
+      } else if (intent === "中") {
+        return `<span class="px-2 py-0.5 rounded-full text-[10px] font-medium bg-amber-100 text-amber-800 border border-amber-300">⚡ 中意向</span>`;
+      } else {
+        return `<span class="px-2 py-0.5 rounded-full text-[10px] font-normal bg-slate-100 text-slate-600 border border-slate-200">❄️ 低意向</span>`;
+      }
+    }
+
+    // 渲染卡片
+    function renderSupplierCards(list) {
+      const container = document.getElementById("supplier-cards");
+      if (!list || list.length === 0) {
+        container.innerHTML = `
+          <div class="bg-white rounded-2xl p-8 text-center border border-slate-200">
+            <div class="text-3xl mb-2">📁</div>
+            <div class="text-xs font-semibold text-slate-600">暂无符合条件的供应商档案</div>
+            <p class="text-[11px] text-slate-400 mt-1">可以在录入页粘贴随手记快速建档</p>
+          </div>
+        `;
+        return;
+      }
+
+      container.innerHTML = list.map(item => `
+        <div class="bg-white rounded-2xl p-4 shadow-sm border border-slate-200 hover:border-emerald-300 transition space-y-2.5">
+          <div class="flex items-start justify-between">
+            <div class="flex-1 pr-2">
+              <h4 class="font-bold text-sm text-slate-900 leading-snug">${escapeHtml(item.company_name)}</h4>
+              <div class="flex items-center space-x-2 mt-0.5">
+                <p class="text-xs text-slate-500 flex items-center truncate">
+                  <i data-lucide="map-pin" class="w-3 h-3 mr-1 text-slate-400 flex-shrink-0"></i>
+                  ${escapeHtml(item.location || '产区待补充')}
+                </p>
+                ${item.location ? `
+                  <a href="https://uri.amap.com/marker?position=${item.longitude || ''},${item.latitude || ''}&name=${encodeURIComponent(item.company_name)}&address=${encodeURIComponent(item.location)}" target="_blank" class="px-1.5 py-0.5 rounded bg-blue-50 text-blue-700 text-[10px] font-medium flex items-center border border-blue-200 flex-shrink-0">
+                    <i data-lucide="navigation" class="w-2.5 h-2.5 mr-0.5"></i>导航
+                  </a>
+                ` : ''}
+              </div>
+            </div>
+            ${getIntentBadge(item.cooperation_intent)}
+          </div>
+
+          <!-- 优势产品标签 -->
+          ${item.advantage_products ? `
+            <div class="bg-emerald-50/70 border border-emerald-100 rounded-lg px-2.5 py-1.5 flex items-center text-xs">
+              <span class="text-emerald-800 font-medium truncate flex-1">
+                ⭐ 核心拳头：${escapeHtml(item.advantage_products)}
+              </span>
+            </div>
+          ` : ''}
+
+          <!-- 多款产品供货报价清单 (告别单行刺眼红字，清晰分列) -->
+          ${renderPriceSection(item.price_terms)}
+
+          <!-- 商业背景与考察备忘 (如为谁供货、外采疑虑等) -->
+          ${item.extra_notes ? `
+            <div class="bg-amber-50/80 border border-amber-200/70 rounded-lg px-2.5 py-1.5 text-xs text-amber-950 flex items-start">
+              <i data-lucide="info" class="w-3.5 h-3.5 text-amber-600 mr-1 mt-0.5 flex-shrink-0"></i>
+              <span class="line-clamp-2"><strong>备忘：</strong>${escapeHtml(item.extra_notes)}</span>
+            </div>
+          ` : ''}
+
+          <!-- 规模 & 账期摘要 -->
+          <div class="text-xs text-slate-600 space-y-1">
+            ${item.scale ? `<div class="truncate"><span class="text-slate-400">规模：</span>${escapeHtml(item.scale)}</div>` : ''}
+            ${item.payment_terms ? `<div class="truncate"><span class="text-slate-400">账期：</span>${escapeHtml(item.payment_terms)}</div>` : ''}
+          </div>
+
+          <!-- 照片缩略图横排 (如果有照片) -->
+          ${renderCardPhotos(item.images)}
+
+          <!-- 底部联系人与操作 -->
+          <div class="border-t border-slate-100 pt-2.5 flex items-center justify-between text-xs">
+            <div class="flex items-center text-slate-700">
+              <i data-lucide="user" class="w-3.5 h-3.5 mr-1 text-slate-400"></i>
+              <span class="font-medium mr-1.5">${escapeHtml(item.contact_name || '未填联系人')}</span>
+              <span class="text-slate-400 text-[11px]">${escapeHtml(item.contact_role || '')}</span>
+            </div>
+
+            <div class="flex items-center space-x-1.5 flex-wrap gap-y-1">
+              ${item.contact_phone ? `
+                <a href="tel:${escapeHtml(item.contact_phone)}" class="px-2 py-1 rounded-lg bg-emerald-50 hover:bg-emerald-100 text-emerald-700 font-medium flex items-center text-xs border border-emerald-200">
+                  <i data-lucide="phone-call" class="w-3 h-3 mr-1"></i>呼叫
+                </a>
+              ` : ''}
+              <button onclick="quickRevertToPlanned(${item.id}, '${escapeHtml(item.company_name)}')" class="px-2 py-1 rounded-lg bg-amber-50 hover:bg-amber-100 text-amber-800 text-xs flex items-center border border-amber-200" title="误操作？一键退回到待拜访行程">
+                <i data-lucide="rotate-ccw" class="w-3 h-3 mr-0.5 text-amber-600"></i>退回待办
+              </button>
+              <a href="/api/export/supplier/${item.id}" download class="px-2 py-1 rounded-lg bg-emerald-50 hover:bg-emerald-100 text-emerald-800 text-xs flex items-center border border-emerald-300 font-medium" title="导出包含文字和现场照片的独立尽调表格">
+                <i data-lucide="file-spreadsheet" class="w-3.5 h-3.5 mr-1 text-emerald-600"></i>图文表
+              </a>
+              <button onclick="syncSingleToJgy(${item.id})" class="px-2 py-1 rounded-lg bg-amber-50 hover:bg-amber-100 text-amber-800 text-xs flex items-center border border-amber-300 font-medium" title="一键同步该厂尽调表与原照至坚果云">
+                <span class="mr-0.5 text-xs">🌰</span>坚果云
+              </button>
+              <button onclick="openDetailModal(${item.id})" class="px-2 py-1 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-600 text-xs">
+                详情
+              </button>
+            </div>
+          </div>
+        </div>
+      `).join("");
+
+      lucide.createIcons();
+    }
+
+    function renderPriceSection(priceStr) {
+      if (!priceStr || !priceStr.trim()) return '';
+      // 按照换行、分号、或逗号拆解多款产品报价
+      let items = priceStr.split(/[\n;；]+/g).map(s => s.trim()).filter(Boolean);
+      // 如果没有换行分号，但包含多个逗号分开的价格
+      if (items.length === 1 && items[0].includes(',')) {
+        items = items[0].split(/[,，]+/g).map(s => s.trim()).filter(Boolean);
+      }
+      if (items.length === 0) return '';
+
+      return `
+        <div class="bg-slate-50 border border-slate-200/90 rounded-xl p-2.5 space-y-1.5 text-xs">
+          <div class="text-[11px] font-bold text-slate-600 flex items-center justify-between">
+            <span class="flex items-center"><i data-lucide="tag" class="w-3 h-3 mr-1 text-slate-500"></i>产品报价清单</span>
+            <span class="text-[10px] text-slate-400 font-normal">共 ${items.length} 款</span>
+          </div>
+          <div class="flex flex-wrap gap-1.5">
+            ${items.map(p => `
+              <span class="px-2.5 py-1 rounded-lg bg-white border border-slate-200 text-slate-800 font-medium text-xs shadow-xs flex items-center">
+                💵 ${escapeHtml(p)}
+              </span>
+            `).join('')}
+          </div>
+        </div>
+      `;
+    }
+
+    function renderCardPhotos(imagesStr) {
+      if (!imagesStr) return '';
+      try {
+        const imgs = typeof imagesStr === 'string' ? JSON.parse(imagesStr) : imagesStr;
+        if (!Array.isArray(imgs) || imgs.length === 0) return '';
+        return `
+          <div class="flex items-center space-x-1.5 overflow-x-auto no-scrollbar py-1">
+            ${imgs.map(url => `
+              <img src="${url}" class="w-14 h-14 object-cover rounded-lg border border-slate-200 flex-shrink-0 cursor-pointer hover:opacity-90" onclick="event.stopPropagation(); openLightbox('${url}')">
+            `).join('')}
+            <span class="text-[10px] text-slate-400 pl-1 flex-shrink-0">共 ${imgs.length} 张照片</span>
+          </div>
+        `;
+      } catch (e) {
+        return '';
+      }
+    }
+
+    function escapeHtml(str) {
+      if (!str) return "";
+      return String(str)
+        .replace(/&/g, "&amp;")
+        .replace(/</g, "&lt;")
+        .replace(/>/g, "&gt;")
+        .replace(/"/g, "&quot;")
+        .replace(/'/g, "&#039;");
+    }
+
+    // 意向标签筛选
+    function filterIntent(intent, btn) {
+      currentIntentFilter = intent;
+      document.querySelectorAll(".filter-intent-btn").forEach(b => {
+        b.classList.remove("bg-emerald-600", "text-white", "font-medium");
+        b.classList.add("bg-slate-100", "text-slate-600");
+      });
+      btn.classList.remove("bg-slate-100", "text-slate-600");
+      btn.classList.add("bg-emerald-600", "text-white", "font-medium");
+
+      loadSuppliers(document.getElementById("search-input").value);
+    }
+
+    function debouncedSearch() {
+      clearTimeout(searchTimeout);
+      searchTimeout = setTimeout(() => {
+        loadSuppliers(document.getElementById("search-input").value);
+      }, 250);
+    }
+
+    // 仅导出高意向供应商台账
+    async function exportHighIntentOnly() {
+      try {
+        const resp = await fetch("/api/suppliers?intent=" + encodeURIComponent("高"));
+        const res = await resp.json();
+        if (res.status === "ok" && res.data.length > 0) {
+          const ids = res.data.map(x => x.id).join(",");
+          window.location.href = `/api/export/excel?ids=${ids}`;
+          showToast(`正在导出 ${res.data.length} 家高意向供应商总台账...`);
+        } else {
+          showToast("暂无高意向供应商，请先录入或标记");
+        }
+      } catch (e) {
+        showToast("导出失败");
+      }
+    }
+
+    // 统计各意向数量与行程数量
+    async function updateIntentCounts() {
+      try {
+        const [respVisited, respPlanned] = await Promise.all([
+          fetch("/api/suppliers?status=visited"),
+          fetch("/api/suppliers?status=planned")
+        ]);
+        const rV = await respVisited.json();
+        const rP = await respPlanned.json();
+
+        if (rV.status === "ok") {
+          const all = rV.data;
+          const vBadge = document.getElementById("count-visited-badge");
+          if (vBadge) vBadge.innerText = all.length;
+          document.getElementById("count-all").innerText = all.length;
+          document.getElementById("count-high").innerText = all.filter(x => x.cooperation_intent === "高").length;
+          document.getElementById("count-mid").innerText = all.filter(x => x.cooperation_intent === "中").length;
+          document.getElementById("count-low").innerText = all.filter(x => x.cooperation_intent === "低").length;
+        }
+        if (rP.status === "ok") {
+          const pBadge = document.getElementById("count-planned-badge");
+          if (pBadge) pBadge.innerText = rP.data.length;
+        }
+      } catch (e) {}
+    }
+
+    async function deleteCurrentSupplierDirect(id) {
+      if (!confirm("确定删除该待拜访行程吗？")) return;
+      try {
+        const resp = await fetch(`/api/suppliers/${id}`, { method: "DELETE" });
+        const res = await resp.json();
+        if (res.status === "ok") {
+          showToast("已删除行程");
+          loadSuppliers();
+        }
+      } catch (e) {
+        showToast("删除失败");
+      }
+    }
+
+    // 统计面板
+    async function updateStats() {
+      try {
+        const resp = await fetch("/api/suppliers");
+        const res = await resp.json();
+        if (res.status === "ok") {
+          const list = res.data;
+          document.getElementById("stat-total").innerText = list.length;
+          document.getElementById("stat-high").innerText = list.filter(x => x.cooperation_intent === "高").length;
+
+          const locations = new Set(list.map(x => (x.location || "").slice(0, 3)).filter(x => x.length > 0));
+          document.getElementById("stat-locations").innerText = locations.size;
+        }
+      } catch (e) {}
+    }
+
+    let currentModalItemStatus = 'visited';
+    let currentModalPlanDate = '';
+    let currentModalPlanNotes = '';
+
+    // 详情 Modal 查看与编辑
+    async function openDetailModal(id) {
+      try {
+        const resp = await fetch(`/api/suppliers/${id}`);
+        const res = await resp.json();
+        if (res.status === "ok") {
+          const d = res.data;
+          currentModalItemStatus = d.status || 'visited';
+          currentModalPlanDate = d.plan_date || '';
+          currentModalPlanNotes = d.plan_notes || '';
+
+          const statusBadge = document.getElementById("modal-status-badge");
+          const toggleText = document.getElementById("modal-btn-toggle-status-text");
+          const toggleBtn = document.getElementById("modal-btn-toggle-status");
+          if (statusBadge && toggleText && toggleBtn) {
+            if (currentModalItemStatus === 'visited') {
+              statusBadge.innerText = "已考察档案";
+              statusBadge.className = "px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-100 text-emerald-800 border border-emerald-300";
+              toggleText.innerText = "退回待拜访";
+              toggleBtn.className = "px-2.5 py-1 rounded-lg text-xs font-medium border border-amber-300 bg-amber-50 hover:bg-amber-100 text-amber-800 transition flex items-center shadow-xs";
+            } else {
+              statusBadge.innerText = "待拜访行程";
+              statusBadge.className = "px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-100 text-amber-900 border border-amber-300";
+              toggleText.innerText = "转为已考察";
+              toggleBtn.className = "px-2.5 py-1 rounded-lg text-xs font-medium border border-emerald-300 bg-emerald-50 hover:bg-emerald-100 text-emerald-800 transition flex items-center shadow-xs";
+            }
+          }
+
+          document.getElementById("modal-id").value = d.id;
+          document.getElementById("modal-company-name").value = d.company_name || "";
+          document.getElementById("modal-location").value = d.location || "";
+          document.getElementById("modal-intent").value = d.cooperation_intent || "中";
+          document.getElementById("modal-scale").value = d.scale || "";
+          document.getElementById("modal-main-products").value = d.main_products || "";
+          document.getElementById("modal-advantage-products").value = d.advantage_products || "";
+          document.getElementById("modal-price").value = d.price_terms || "";
+          document.getElementById("modal-payment").value = d.payment_terms || "";
+          document.getElementById("modal-contact-name").value = d.contact_name || "";
+          document.getElementById("modal-contact-role").value = d.contact_role || "";
+          document.getElementById("modal-contact-phone").value = d.contact_phone || "";
+          document.getElementById("modal-extra-notes").value = d.extra_notes || "";
+          
+          const expBtn = document.getElementById("modal-export-btn");
+          if (expBtn) expBtn.href = `/api/export/supplier/${d.id}`;
+
+          // 解析照片
+          try {
+            modalPhotos = d.images ? (typeof d.images === 'string' ? JSON.parse(d.images) : d.images) : [];
+          } catch (e) {
+            modalPhotos = [];
+          }
+          renderModalPhotos();
+
+          if (d.raw_notes) {
+            document.getElementById("modal-raw-container").classList.remove("hidden");
+            document.getElementById("modal-raw-notes").innerText = d.raw_notes;
+          } else {
+            document.getElementById("modal-raw-container").classList.add("hidden");
+          }
+
+          document.getElementById("detail-modal").classList.remove("hidden");
+          lucide.createIcons();
+        }
+      } catch (e) {
+        showToast("获取详情失败");
+      }
+    }
+
+    function closeModal() {
+      document.getElementById("detail-modal").classList.add("hidden");
+    }
+
+    async function toggleSupplierStatusFromModal() {
+      const id = document.getElementById("modal-id").value;
+      const companyName = document.getElementById("modal-company-name").value;
+      if (!id) return;
+
+      const targetStatus = currentModalItemStatus === 'visited' ? 'planned' : 'visited';
+      const promptText = targetStatus === 'planned' 
+        ? `确定将【${companyName}】退回到「待拜访行程」吗？` 
+        : `确定将【${companyName}】直接转为「已考察档案」吗？`;
+
+      if (!confirm(promptText)) return;
+
+      try {
+        const resp = await fetch(`/api/suppliers/${id}/status`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ status: targetStatus })
+        });
+        const res = await resp.json();
+        if (res.status === "ok") {
+          showToast(targetStatus === 'planned' ? "📅 已退回待拜访行程！" : "✅ 已转入已考察档案！");
+          closeModal();
+          await updateIntentCounts();
+          loadSuppliers(document.getElementById("search-input").value);
+        } else {
+          showToast("状态修改失败: " + (res.message || "未知错误"));
+        }
+      } catch (e) {
+        showToast("请求失败，请检查网络");
+      }
+    }
+
+    async function quickRevertToPlanned(id, companyName) {
+      if (!confirm(`确定将【${companyName}】退回到「待拜访行程」吗？`)) {
+        return;
+      }
+      try {
+        const resp = await fetch(`/api/suppliers/${id}/status`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ status: "planned" })
+        });
+        const res = await resp.json();
+        if (res.status === "ok") {
+          showToast("📅 已成功退回到待拜访行程！");
+          await updateIntentCounts();
+          loadSuppliers(document.getElementById("search-input").value);
+        } else {
+          showToast("修改失败: " + (res.message || "未知错误"));
+        }
+      } catch (e) {
+        showToast("请求失败，请检查网络");
+      }
+    }
+
+    // 保存 Modal 编辑
+    async function saveModalChanges() {
+      const id = document.getElementById("modal-id").value;
+      const company_name = document.getElementById("modal-company-name").value.trim();
+      if (!company_name) {
+        showToast("公司名称不能为空");
+        return;
+      }
+
+      const payload = {
+        company_name,
+        location: document.getElementById("modal-location").value.trim(),
+        cooperation_intent: document.getElementById("modal-intent").value,
+        scale: document.getElementById("modal-scale").value.trim(),
+        main_products: document.getElementById("modal-main-products").value.trim(),
+        advantage_products: document.getElementById("modal-advantage-products").value.trim(),
+        price_terms: document.getElementById("modal-price").value.trim(),
+        payment_terms: document.getElementById("modal-payment").value.trim(),
+        contact_name: document.getElementById("modal-contact-name").value.trim(),
+        contact_role: document.getElementById("modal-contact-role").value.trim(),
+        contact_phone: document.getElementById("modal-contact-phone").value.trim(),
+        raw_notes: document.getElementById("modal-raw-notes").innerText,
+        extra_notes: document.getElementById("modal-extra-notes").value.trim(),
+        images: JSON.stringify(modalPhotos),
+        status: currentModalItemStatus,
+        plan_date: currentModalPlanDate,
+        plan_notes: currentModalPlanNotes
+      };
+
+      try {
+        const resp = await fetch(`/api/suppliers/${id}`, {
+          method: "PUT",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(payload)
+        });
+        const res = await resp.json();
+        if (res.status === "ok") {
+          showToast("更新成功！");
+          closeModal();
+          loadSuppliers(document.getElementById("search-input").value);
+        }
+      } catch (e) {
+        showToast("更新失败");
+      }
+    }
+
+    // 删除当前供应商
+    async function deleteCurrentSupplier() {
+      const id = document.getElementById("modal-id").value;
+      if (!confirm("确定要删除该供应商档案吗？删除后不可恢复。")) {
+        return;
+      }
+      try {
+        const resp = await fetch(`/api/suppliers/${id}`, { method: "DELETE" });
+        const res = await resp.json();
+        if (res.status === "ok") {
+          showToast("已删除");
+          closeModal();
+          loadSuppliers(document.getElementById("search-input").value);
+        }
+      } catch (e) {
+        showToast("删除请求失败");
+      }
+    }
+
+    // 设置相关
+    async function loadSettings() {
+      try {
+        const resp = await fetch("/api/settings");
+        const res = await resp.json();
+        if (res.status === "ok") {
+          const d = res.data;
+          document.getElementById("setting-base-url").value = d.base_url || "https://api.siliconflow.cn/v1";
+          document.getElementById("setting-model").value = d.model || "Qwen/Qwen2.5-7B-Instruct";
+          
+          const keyInput = document.getElementById("setting-api-key");
+          const statusEl = document.getElementById("current-key-status");
+          const titleEl = document.getElementById("ai-status-title");
+
+          if (d.has_key) {
+            keyInput.value = d.api_key_masked || "••••••••••••";
+            statusEl.innerText = "已生效 (硅基流动)";
+            titleEl.innerText = `已激活: ${d.model}`;
+          } else {
+            keyInput.value = "";
+            statusEl.innerText = "未配置";
+            titleEl.innerText = "当前运行于本地规则抽取模式";
+          }
+        }
+      } catch (e) {}
+    }
+
+    async function handleSaveSettings() {
+      const apiKey = document.getElementById("setting-api-key").value.trim();
+      const baseUrl = document.getElementById("setting-base-url").value.trim();
+      const model = document.getElementById("setting-model").value.trim();
+
+      try {
+        const resp = await fetch("/api/settings", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            api_key: apiKey,
+            base_url: baseUrl,
+            model: model
+          })
+        });
+        const res = await resp.json();
+        if (res.status === "ok") {
+          showToast("AI 引擎配置已保存");
+          loadSettings();
+          document.getElementById("setting-api-key").value = "";
+        }
+      } catch (e) {
+        showToast("保存失败");
+      }
+    }
+
+    // ----------------- 坚果云网盘 WebDAV 交互 -----------------
+    function toggleJgyHelp() {
+      const box = document.getElementById("jgy-help-box");
+      if (box) box.classList.toggle("hidden");
+    }
+
+    function toggleJgyEnabledUI() {
+      const isEnabled = document.getElementById("jgy-enabled").checked;
+      const badge = document.getElementById("jgy-badge-status");
+      if (badge) {
+        if (isEnabled) {
+          badge.innerText = "已启用";
+          badge.className = "text-[11px] text-emerald-700 font-bold bg-emerald-50 px-2 py-0.5 rounded-full border border-emerald-200";
+        } else {
+          badge.innerText = "未启用";
+          badge.className = "text-[11px] text-slate-500 font-bold bg-slate-100 px-2 py-0.5 rounded-full border border-slate-200";
+        }
+      }
+    }
+
+    async function loadJgySettings() {
+      try {
+        const resp = await fetch("/api/jianguoyun/settings");
+        const d = await resp.json();
+        const enabledEl = document.getElementById("jgy-enabled");
+        const autoSyncEl = document.getElementById("jgy-auto-sync");
+        const accountEl = document.getElementById("jgy-account");
+        const dirEl = document.getElementById("jgy-dir");
+        const pwdInput = document.getElementById("jgy-password");
+        const badge = document.getElementById("jgy-badge-status");
+
+        if (enabledEl) enabledEl.checked = Boolean(d.enabled);
+        if (autoSyncEl) autoSyncEl.checked = Boolean(d.auto_sync);
+        if (accountEl) accountEl.value = d.account || "";
+        if (dirEl) dirEl.value = d.remote_dir || "/无花果供应商档案";
+
+        if (pwdInput) {
+          if (d.has_password) {
+            pwdInput.value = d.password || "••••••••••••";
+          } else {
+            pwdInput.value = "";
+          }
+        }
+
+        if (badge) {
+          if (d.enabled && d.has_password) {
+            badge.innerText = "已就绪 🌰";
+            badge.className = "text-[11px] text-emerald-700 font-bold bg-emerald-50 px-2 py-0.5 rounded-full border border-emerald-200";
+          } else if (d.enabled) {
+            badge.innerText = "待填密码";
+            badge.className = "text-[11px] text-amber-700 font-bold bg-amber-50 px-2 py-0.5 rounded-full border border-amber-200";
+          } else {
+            badge.innerText = "未启用";
+            badge.className = "text-[11px] text-slate-500 font-bold bg-slate-100 px-2 py-0.5 rounded-full border border-slate-200";
+          }
+        }
+      } catch (e) {
+        console.error("加载坚果云配置失败", e);
+      }
+    }
+
+    async function saveJgySettings() {
+      const enabled = document.getElementById("jgy-enabled").checked;
+      const autoSync = document.getElementById("jgy-auto-sync").checked;
+      const account = document.getElementById("jgy-account").value.trim();
+      const password = document.getElementById("jgy-password").value.trim();
+      const remoteDir = document.getElementById("jgy-dir").value.trim() || "/无花果供应商档案";
+
+      const btn = document.getElementById("btn-jgy-save");
+      const origText = btn ? btn.innerHTML : "";
+      if (btn) {
+        btn.innerHTML = `<span class="animate-spin mr-1">⌛</span> 保存中...`;
+        btn.disabled = true;
+      }
+
+      try {
+        const resp = await fetch("/api/jianguoyun/settings", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            enabled: enabled,
+            server: "https://dav.jianguoyun.com/dav",
+            account: account,
+            password: password,
+            remote_dir: remoteDir,
+            auto_sync: autoSync
+          })
+        });
+        const res = await resp.json();
+        if (res.status === "ok") {
+          showToast("✅ 坚果云配置已保存！");
+          await loadJgySettings();
+        } else {
+          showToast("保存失败: " + (res.message || "未知错误"));
+        }
+      } catch (e) {
+        showToast("保存坚果云配置网络错误");
+      } finally {
+        if (btn) {
+          btn.innerHTML = origText;
+          btn.disabled = false;
+          lucide.createIcons();
+        }
+      }
+    }
+
+    async function testJgyConnection() {
+      const account = document.getElementById("jgy-account").value.trim();
+      const password = document.getElementById("jgy-password").value.trim();
+      const server = "https://dav.jianguoyun.com/dav";
+
+      if (!account) {
+        alert("请先填写坚果云账号（你的坚果云注册邮箱）");
+        return;
+      }
+      if (!password) {
+        alert("请先填写坚果云16位应用授权密码");
+        return;
+      }
+
+      const btn = document.getElementById("btn-jgy-test");
+      const origText = btn ? btn.innerHTML : "";
+      if (btn) {
+        btn.innerHTML = `<span class="animate-spin mr-1">⌛</span> 握手测试中...`;
+        btn.disabled = true;
+      }
+
+      try {
+        const resp = await fetch("/api/jianguoyun/test", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            server: server,
+            account: account,
+            password: password
+          })
+        });
+        const res = await resp.json();
+        if (res.success) {
+          alert("🎉 坚果云连接测试成功！\n\n已成功连通坚果云 WebDAV 服务器，认证通过！\n\n记得点击旁边的【保存配置】按钮保存设置哦。");
+          showToast("✅ 坚果云连接成功！");
+          const badge = document.getElementById("jgy-badge-status");
+          if (badge) {
+            badge.innerText = "握手通过 ✅";
+            badge.className = "text-[11px] text-emerald-700 font-bold bg-emerald-50 px-2 py-0.5 rounded-full border border-emerald-200";
+          }
+        } else {
+          alert("⚠️ 坚果云连接未通过：\n\n" + (res.message || "未知错误") + "\n\n请核实：\n1. 账号是否为坚果云注册邮箱；\n2. 密码是否为在坚果云【账户信息 ➔ 安全选项 ➔ 第三方应用管理】里生成的16位应用密码（不可用普通网页登录密码）。");
+          showToast("连接未通过，请查看提示");
+        }
+      } catch (e) {
+        alert("网络请求超时或出错，请检查网络连接");
+      } finally {
+        if (btn) {
+          btn.innerHTML = origText;
+          btn.disabled = false;
+          lucide.createIcons();
+        }
+      }
+    }
+
+    async function syncSingleToJgy(supplierId) {
+      showToast("正在导出图文报告并同步至坚果云 ☁️...");
+      try {
+        const resp = await fetch(`/api/jianguoyun/sync/${supplierId}`, { method: "POST" });
+        const res = await resp.json();
+        if (resp.ok && res.success) {
+          alert("🎉 同步坚果云成功！\n\n" + res.message);
+          showToast("✅ 坚果云同步成功！");
+        } else {
+          alert("坚果云同步提示：\n\n" + (res.detail || res.message || "请先前往底栏【引擎设置】配置坚果云账号和16位应用密码"));
+        }
+      } catch (e) {
+        showToast("同步请求失败，请检查网络");
+      }
+    }
+
+    async function syncCurrentModalToJgy() {
+      const id = document.getElementById("modal-id").value;
+      if (id) {
+        await syncSingleToJgy(id);
+      }
+    }
+
+    async function syncAllToJgy() {
+      if (!confirm("确定要将当前所有供应商总台账、各厂独立尽调报告及现场照片全量同步至坚果云吗？")) {
+        return;
+      }
+
+      const btn = document.getElementById("btn-jgy-syncall");
+      const origText = btn ? btn.innerHTML : "";
+      if (btn) {
+        btn.innerHTML = `<span class="animate-spin mr-1.5">⌛</span> 同步中...`;
+        btn.disabled = true;
+      }
+      showToast("开始全量同步坚果云，请稍候...");
+
+      try {
+        const resp = await fetch("/api/jianguoyun/sync_all", { method: "POST" });
+        const res = await resp.json();
+        if (resp.ok && res.success) {
+          alert("🎉 全量同步坚果云完成！\n\n" + res.message);
+          showToast("✅ 全量同步坚果云成功！");
+        } else {
+          alert("全量同步提示：\n\n" + (res.detail || res.message || "请先在【引擎设置】配置坚果云账号和应用密码"));
+        }
+      } catch (e) {
+        showToast("全量同步失败，请检查设置");
+      } finally {
+        if (btn) {
+          btn.innerHTML = origText;
+          btn.disabled = false;
+          lucide.createIcons();
+        }
+      }
+    }
+
+    // 初始化加载
+    window.addEventListener("DOMContentLoaded", () => {
+      loadJgySettings();
+      lucide.createIcons();
+    });
+  </script>
+</body>
+</html>
