@@ -6,8 +6,11 @@ import datetime
 from io import BytesIO
 import uuid
 import shutil
+import hashlib
+import hmac
+import secrets
 from typing import Optional, List, Dict, Any
-from fastapi import FastAPI, HTTPException, Response, UploadFile, File, BackgroundTasks
+from fastapi import FastAPI, HTTPException, Response, UploadFile, File, BackgroundTasks, Depends, Header, Query
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import HTMLResponse, StreamingResponse
 from pydantic import BaseModel
@@ -76,6 +79,30 @@ def init_db():
     )
     """)
 
+    # 用户账号表 (支持 pending 待审批, rejected 拒绝, viewer 只读, admin 最高可编辑)
+    cursor.execute("""
+    CREATE TABLE IF NOT EXISTS users (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        username TEXT UNIQUE NOT NULL,
+        password_hash TEXT NOT NULL,
+        salt TEXT NOT NULL,
+        display_name TEXT DEFAULT '',
+        role TEXT DEFAULT 'pending',
+        created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+        updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+    )
+    """)
+
+    # 用户会话 Token 表
+    cursor.execute("""
+    CREATE TABLE IF NOT EXISTS sessions (
+        token TEXT PRIMARY KEY,
+        user_id INTEGER NOT NULL,
+        created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+        FOREIGN KEY(user_id) REFERENCES users(id) ON DELETE CASCADE
+    )
+    """)
+
     # 插入示例数据（如果为空）
     cursor.execute("SELECT COUNT(*) FROM suppliers")
     if cursor.fetchone()[0] == 0:
@@ -138,6 +165,77 @@ def init_db():
     conn.close()
 
 init_db()
+
+# ----------------- 用户认证与权限体系 -----------------
+class UserRegister(BaseModel):
+    username: str
+    password: str
+    display_name: Optional[str] = ""
+
+class UserLogin(BaseModel):
+    username: str
+    password: str
+
+class UserRoleUpdate(BaseModel):
+    role: str
+
+def hash_password(password: str, salt: str = None):
+    if not salt:
+        salt = secrets.token_hex(16)
+    key = hashlib.pbkdf2_hmac('sha256', password.encode('utf-8'), salt.encode('utf-8'), 100000)
+    return key.hex(), salt
+
+def verify_password(password: str, salt: str, password_hash: str) -> bool:
+    key = hashlib.pbkdf2_hmac('sha256', password.encode('utf-8'), salt.encode('utf-8'), 100000)
+    return hmac.compare_digest(key.hex(), password_hash)
+
+def get_current_user(
+    authorization: Optional[str] = Header(None),
+    token: Optional[str] = Query(None)
+) -> dict:
+    auth_token = None
+    if authorization and authorization.startswith("Bearer "):
+        auth_token = authorization.split(" ", 1)[1].strip()
+    elif token:
+        auth_token = token.strip()
+
+    if not auth_token:
+        raise HTTPException(status_code=401, detail="未提供登录凭证，请先登录")
+
+    conn = sqlite3.connect(DB_PATH)
+    cursor = conn.cursor()
+    cursor.execute("""
+        SELECT u.id, u.username, u.display_name, u.role
+        FROM sessions s
+        JOIN users u ON s.user_id = u.id
+        WHERE s.token = ?
+    """, (auth_token,))
+    row = cursor.fetchone()
+    conn.close()
+
+    if not row:
+        raise HTTPException(status_code=401, detail="登录已过期或凭证无效，请重新登录")
+
+    return {
+        "id": row[0],
+        "username": row[1],
+        "display_name": row[2] or row[1],
+        "role": row[3]
+    }
+
+def require_active_user(user: dict = Depends(get_current_user)) -> dict:
+    if user["role"] == "pending":
+        raise HTTPException(status_code=403, detail="您的账号正在等待管理员审核授权，请联系管理员")
+    if user["role"] == "rejected":
+        raise HTTPException(status_code=403, detail="您的访问申请已被管理员拒绝")
+    if user["role"] not in ["admin", "viewer"]:
+        raise HTTPException(status_code=403, detail="暂无业务数据访问权限")
+    return user
+
+def require_admin(user: dict = Depends(get_current_user)) -> dict:
+    if user["role"] != "admin":
+        raise HTTPException(status_code=403, detail="此操作需要最高管理员编辑权限")
+    return user
 
 # ----------------- 数据模型 -----------------
 class SupplierCreate(BaseModel):
@@ -367,8 +465,208 @@ async def ai_extract_info(text: str, settings: Dict[str, str]) -> Dict[str, Any]
 
 # ----------------- API 路由 -----------------
 
+# ----------------- 账号与权限 API -----------------
+
+@app.get("/api/auth/status")
+def get_auth_status():
+    """获取当前系统是否有管理员，用于前端决定是否显示‘系统初始化创建管理员’引导"""
+    conn = sqlite3.connect(DB_PATH)
+    cursor = conn.cursor()
+    cursor.execute("SELECT COUNT(*) FROM users WHERE role = 'admin'")
+    admin_count = cursor.fetchone()[0]
+    cursor.execute("SELECT COUNT(*) FROM users")
+    total_users = cursor.fetchone()[0]
+    conn.close()
+    return {
+        "status": "ok",
+        "has_admin": admin_count > 0,
+        "total_users": total_users
+    }
+
+@app.post("/api/auth/register")
+def register_user(req: UserRegister):
+    username = req.username.strip()
+    password = req.password.strip()
+    display_name = req.display_name.strip() if req.display_name else ""
+
+    if len(username) < 2:
+        raise HTTPException(status_code=400, detail="账号至少需要2位字符")
+    if len(password) < 6:
+        raise HTTPException(status_code=400, detail="密码至少需要6位字符")
+
+    conn = sqlite3.connect(DB_PATH)
+    cursor = conn.cursor()
+    cursor.execute("SELECT id FROM users WHERE username = ?", (username,))
+    if cursor.fetchone():
+        conn.close()
+        raise HTTPException(status_code=400, detail="该用户名已存在，请换一个")
+
+    # 如果系统当前没有管理员，首个注册用户自动成为最高管理员！否则默认为 pending 待审批
+    cursor.execute("SELECT COUNT(*) FROM users WHERE role = 'admin'")
+    has_admin = cursor.fetchone()[0] > 0
+    assigned_role = "admin" if not has_admin else "pending"
+
+    pwd_hash, salt = hash_password(password)
+    now = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    cursor.execute("""
+        INSERT INTO users (username, password_hash, salt, display_name, role, created_at, updated_at)
+        VALUES (?, ?, ?, ?, ?, ?, ?)
+    """, (username, pwd_hash, salt, display_name or username, assigned_role, now, now))
+    user_id = cursor.lastrowid
+
+    token = secrets.token_urlsafe(32)
+    cursor.execute("INSERT INTO sessions (token, user_id, created_at) VALUES (?, ?, ?)", (token, user_id, now))
+    conn.commit()
+    conn.close()
+
+    msg = "🎉 恭喜！您已成功创建首个最高管理员账号！" if assigned_role == "admin" else "注册成功！申请已提交，请等待管理员审核授权。"
+    return {
+        "status": "ok",
+        "message": msg,
+        "data": {
+            "token": token,
+            "user": {
+                "id": user_id,
+                "username": username,
+                "display_name": display_name or username,
+                "role": assigned_role
+            }
+        }
+    }
+
+@app.post("/api/auth/login")
+def login_user(req: UserLogin):
+    username = req.username.strip()
+    password = req.password.strip()
+
+    conn = sqlite3.connect(DB_PATH)
+    cursor = conn.cursor()
+    cursor.execute("SELECT id, username, password_hash, salt, display_name, role FROM users WHERE username = ?", (username,))
+    row = cursor.fetchone()
+    if not row:
+        conn.close()
+        raise HTTPException(status_code=400, detail="账号或密码错误")
+
+    user_id, uname, pwd_hash, salt, display_name, role = row
+    if not verify_password(password, salt, pwd_hash):
+        conn.close()
+        raise HTTPException(status_code=400, detail="账号或密码错误")
+
+    token = secrets.token_urlsafe(32)
+    now = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    cursor.execute("INSERT INTO sessions (token, user_id, created_at) VALUES (?, ?, ?)", (token, user_id, now))
+    conn.commit()
+    conn.close()
+
+    return {
+        "status": "ok",
+        "message": "登录成功",
+        "data": {
+            "token": token,
+            "user": {
+                "id": user_id,
+                "username": uname,
+                "display_name": display_name or uname,
+                "role": role
+            }
+        }
+    }
+
+@app.get("/api/auth/me")
+def get_my_info(user: dict = Depends(get_current_user)):
+    return {"status": "ok", "data": user}
+
+@app.post("/api/auth/logout")
+def logout_user(
+    authorization: Optional[str] = Header(None),
+    token: Optional[str] = Query(None)
+):
+    auth_token = None
+    if authorization and authorization.startswith("Bearer "):
+        auth_token = authorization.split(" ", 1)[1].strip()
+    elif token:
+        auth_token = token.strip()
+    if auth_token:
+        conn = sqlite3.connect(DB_PATH)
+        conn.execute("DELETE FROM sessions WHERE token = ?", (auth_token,))
+        conn.commit()
+        conn.close()
+    return {"status": "ok", "message": "已退出登录"}
+
+# ----------------- 管理员审批与成员管理 API -----------------
+
+@app.get("/api/admin/users")
+def list_users(admin: dict = Depends(require_admin)):
+    conn = sqlite3.connect(DB_PATH)
+    cursor = conn.cursor()
+    cursor.execute("""
+        SELECT id, username, display_name, role, created_at, updated_at
+        FROM users
+        ORDER BY 
+            CASE role 
+                WHEN 'pending' THEN 1 
+                WHEN 'admin' THEN 2 
+                WHEN 'viewer' THEN 3 
+                ELSE 4 
+            END, id ASC
+    """)
+    rows = cursor.fetchall()
+    users = []
+    for r in rows:
+        users.append({
+            "id": r[0],
+            "username": r[1],
+            "display_name": r[2] or r[1],
+            "role": r[3],
+            "created_at": r[4],
+            "updated_at": r[5]
+        })
+    conn.close()
+    return {"status": "ok", "data": users}
+
+@app.post("/api/admin/users/{user_id}/role")
+def change_user_role(user_id: int, req: UserRoleUpdate, admin: dict = Depends(require_admin)):
+    new_role = req.role.strip()
+    if new_role not in ["admin", "viewer", "rejected", "pending"]:
+        raise HTTPException(status_code=400, detail="无效的角色权限类型")
+
+    conn = sqlite3.connect(DB_PATH)
+    cursor = conn.cursor()
+    cursor.execute("SELECT id, username, role FROM users WHERE id = ?", (user_id,))
+    target = cursor.fetchone()
+    if not target:
+        conn.close()
+        raise HTTPException(status_code=404, detail="未找到该用户")
+
+    # 安全检查：如果目标是当前管理员且欲取消管理员权限，检查是否还有其他管理员
+    if target[0] == admin["id"] and new_role != "admin":
+        cursor.execute("SELECT COUNT(*) FROM users WHERE role = 'admin'")
+        if cursor.fetchone()[0] <= 1:
+            conn.close()
+            raise HTTPException(status_code=400, detail="系统必须保留至少一位管理员，不能降级自己")
+
+    now = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    cursor.execute("UPDATE users SET role = ?, updated_at = ? WHERE id = ?", (new_role, now, user_id))
+    conn.commit()
+    conn.close()
+    return {"status": "ok", "message": "权限更新成功", "new_role": new_role}
+
+@app.delete("/api/admin/users/{user_id}")
+def delete_user_account(user_id: int, admin: dict = Depends(require_admin)):
+    if user_id == admin["id"]:
+        raise HTTPException(status_code=400, detail="不能删除当前登录的管理员账号")
+    conn = sqlite3.connect(DB_PATH)
+    cursor = conn.cursor()
+    cursor.execute("DELETE FROM sessions WHERE user_id = ?", (user_id,))
+    cursor.execute("DELETE FROM users WHERE id = ?", (user_id,))
+    conn.commit()
+    conn.close()
+    return {"status": "ok", "message": "成员账号已删除"}
+
+# ----------------- 供应商业务 API -----------------
+
 @app.post("/api/extract")
-async def extract_supplier(req: ExtractRequest):
+async def extract_supplier(req: ExtractRequest, user: dict = Depends(require_admin)):
     if not req.text.strip():
         raise HTTPException(status_code=400, detail="内容不能为空")
     
@@ -384,7 +682,12 @@ async def extract_supplier(req: ExtractRequest):
     return {"status": "ok", "data": result}
 
 @app.get("/api/suppliers")
-def get_suppliers(search: Optional[str] = None, intent: Optional[str] = None, status: Optional[str] = "visited"):
+def get_suppliers(
+    search: Optional[str] = None,
+    intent: Optional[str] = None,
+    status: Optional[str] = "visited",
+    user: dict = Depends(require_active_user)
+):
     conn = sqlite3.connect(DB_PATH)
     conn.row_factory = sqlite3.Row
     cursor = conn.cursor()
@@ -413,7 +716,7 @@ def get_suppliers(search: Optional[str] = None, intent: Optional[str] = None, st
     return {"status": "ok", "data": suppliers}
 
 @app.get("/api/suppliers/{supplier_id}")
-def get_supplier_detail(supplier_id: int):
+def get_supplier_detail(supplier_id: int, user: dict = Depends(require_active_user)):
     conn = sqlite3.connect(DB_PATH)
     conn.row_factory = sqlite3.Row
     cursor = conn.cursor()
@@ -428,7 +731,7 @@ import zhconv
 
 # ----------------- 精准逆地理编码 (纯简体字 + 精确到门牌村庄) -----------------
 @app.get("/api/geocode/reverse")
-async def reverse_geocode(lat: float, lng: float):
+async def reverse_geocode(lat: float, lng: float, user: dict = Depends(require_active_user)):
     # 尝试解析具体村庄街道
     address_str = ""
     try:
@@ -481,7 +784,7 @@ async def reverse_geocode(lat: float, lng: float):
         "lng": lng
     }
 @app.post("/api/upload")
-async def upload_image(file: UploadFile = File(...)):
+async def upload_image(file: UploadFile = File(...), user: dict = Depends(require_admin)):
     # 限制后缀
     allowed_exts = [".jpg", ".jpeg", ".png", ".webp", ".gif", ".heic"]
     ext = os.path.splitext(file.filename)[1].lower() if file.filename else ".jpg"
@@ -514,7 +817,7 @@ def check_should_auto_sync() -> bool:
         return False
 
 @app.post("/api/suppliers")
-def create_supplier(supplier: SupplierCreate, background_tasks: BackgroundTasks):
+def create_supplier(supplier: SupplierCreate, background_tasks: BackgroundTasks, user: dict = Depends(require_admin)):
     conn = sqlite3.connect(DB_PATH)
     cursor = conn.cursor()
     cursor.execute("""
@@ -543,7 +846,7 @@ def create_supplier(supplier: SupplierCreate, background_tasks: BackgroundTasks)
     return {"status": "ok", "id": new_id, "message": "保存成功"}
 
 @app.put("/api/suppliers/{supplier_id}")
-def update_supplier(supplier_id: int, supplier: SupplierCreate, background_tasks: BackgroundTasks):
+def update_supplier(supplier_id: int, supplier: SupplierCreate, background_tasks: BackgroundTasks, user: dict = Depends(require_admin)):
     conn = sqlite3.connect(DB_PATH)
     cursor = conn.cursor()
 
@@ -584,7 +887,7 @@ def update_supplier(supplier_id: int, supplier: SupplierCreate, background_tasks
     return {"status": "ok", "message": "更新成功"}
 
 @app.post("/api/suppliers/{supplier_id}/status")
-def change_supplier_status(supplier_id: int, req: Dict[str, str]):
+def change_supplier_status(supplier_id: int, req: Dict[str, str], user: dict = Depends(require_admin)):
     new_status = req.get("status")
     if new_status not in ["visited", "planned"]:
         raise HTTPException(status_code=400, detail="无效状态，仅支持 visited 或 planned")
@@ -596,7 +899,7 @@ def change_supplier_status(supplier_id: int, req: Dict[str, str]):
     return {"status": "ok", "message": "状态切换成功", "status": new_status}
 
 @app.delete("/api/suppliers/{supplier_id}")
-def delete_supplier(supplier_id: int):
+def delete_supplier(supplier_id: int, user: dict = Depends(require_admin)):
     conn = sqlite3.connect(DB_PATH)
     cursor = conn.cursor()
     cursor.execute("DELETE FROM suppliers WHERE id = ?", (supplier_id,))
@@ -618,7 +921,7 @@ def delete_supplier(supplier_id: int):
 
 # ----------------- 设置管理 -----------------
 @app.get("/api/settings")
-def get_settings():
+def get_settings(user: dict = Depends(require_admin)):
     conn = sqlite3.connect(DB_PATH)
     cursor = conn.cursor()
     cursor.execute("SELECT key, value FROM settings")
@@ -640,7 +943,7 @@ def get_settings():
     }
 
 @app.post("/api/settings")
-def save_settings(s: AISettings):
+def save_settings(s: AISettings, user: dict = Depends(require_admin)):
     conn = sqlite3.connect(DB_PATH)
     cursor = conn.cursor()
     # 只有当用户输入了全新且未脱敏的合法 key 时才更新，防止把 sk-... 覆盖进去
@@ -789,7 +1092,7 @@ def build_master_excel_bytes(ids: Optional[str] = None):
     return data, filename
 
 @app.get("/api/export/excel")
-def export_excel(ids: Optional[str] = None):
+def export_excel(ids: Optional[str] = None, user: dict = Depends(require_active_user)):
     data, filename = build_master_excel_bytes(ids)
     from urllib.parse import quote
     encoded_fn = quote(filename)
@@ -924,7 +1227,7 @@ def build_single_supplier_excel_bytes(r):
     return data, filename
 
 @app.get("/api/export/supplier/{supplier_id}")
-def export_single_supplier(supplier_id: int):
+def export_single_supplier(supplier_id: int, user: dict = Depends(require_active_user)):
     conn = sqlite3.connect(DB_PATH)
     conn.row_factory = sqlite3.Row
     cursor = conn.cursor()
@@ -1177,7 +1480,7 @@ async def sync_all_to_jianguoyun() -> Dict[str, Any]:
     }
 
 @app.get("/api/jianguoyun/settings")
-def get_jianguoyun_settings():
+def get_jianguoyun_settings(user: dict = Depends(require_admin)):
     conn = sqlite3.connect(DB_PATH)
     cursor = conn.cursor()
     cursor.execute("SELECT key, value FROM settings")
@@ -1200,7 +1503,7 @@ def get_jianguoyun_settings():
     }
 
 @app.post("/api/jianguoyun/settings")
-def save_jianguoyun_settings(cfg: JianguoyunSettings):
+def save_jianguoyun_settings(cfg: JianguoyunSettings, user: dict = Depends(require_admin)):
     conn = sqlite3.connect(DB_PATH)
     cursor = conn.cursor()
     cursor.execute("INSERT OR REPLACE INTO settings (key, value) VALUES ('jgy_enabled', ?)", ("1" if cfg.enabled else "0",))
@@ -1217,7 +1520,7 @@ def save_jianguoyun_settings(cfg: JianguoyunSettings):
     return {"status": "ok", "message": "坚果云同步配置已保存"}
 
 @app.post("/api/jianguoyun/test")
-async def test_jianguoyun_connection(cfg: Optional[JianguoyunSettings] = None):
+async def test_jianguoyun_connection(cfg: Optional[JianguoyunSettings] = None, user: dict = Depends(require_admin)):
     server = "https://dav.jianguoyun.com/dav"
     account = ""
     password = ""
@@ -1239,14 +1542,14 @@ async def test_jianguoyun_connection(cfg: Optional[JianguoyunSettings] = None):
     return await service.test_connection()
 
 @app.post("/api/jianguoyun/sync/{supplier_id}")
-async def sync_supplier(supplier_id: int):
+async def sync_supplier(supplier_id: int, user: dict = Depends(require_admin)):
     res = await sync_supplier_to_jianguoyun(supplier_id)
     if not res.get("success"):
         raise HTTPException(status_code=400, detail=res.get("message"))
     return res
 
 @app.post("/api/jianguoyun/sync_all")
-async def sync_all():
+async def sync_all(user: dict = Depends(require_admin)):
     res = await sync_all_to_jianguoyun()
     if not res.get("success"):
         raise HTTPException(status_code=400, detail=res.get("message"))
@@ -1256,7 +1559,7 @@ async def sync_all():
 import zipfile
 
 @app.get("/api/export/photos/zip")
-def export_photos_zip(supplier_id: Optional[int] = None):
+def export_photos_zip(supplier_id: Optional[int] = None, user: dict = Depends(require_active_user)):
     conn = sqlite3.connect(DB_PATH)
     conn.row_factory = sqlite3.Row
     cursor = conn.cursor()

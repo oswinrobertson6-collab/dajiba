@@ -40,20 +40,36 @@
 
   <!-- 顶部导航栏 -->
   <header class="bg-gradient-to-r from-emerald-800 to-teal-700 text-white shadow-md sticky top-0 z-40">
-    <div class="max-w-md mx-auto px-4 py-3 flex items-center justify-between">
+    <div class="max-w-md mx-auto px-3 py-2 flex items-center justify-between">
       <div class="flex items-center space-x-2">
         <span class="text-2xl">🌱</span>
         <div>
-          <h1 class="text-base font-bold tracking-tight">无花果供应商助手</h1>
-          <p class="text-xs text-emerald-200">碎片化记录 · 智能结构化入库</p>
+          <h1 class="text-xs font-bold tracking-tight flex items-center space-x-1.5">
+            <span>无花果助手</span>
+            <span id="header-role-badge" class="px-1.5 py-0.2 text-[10px] rounded-full bg-emerald-600/90 text-white font-normal border border-emerald-400/40">加载中</span>
+          </h1>
+          <p id="header-user-text" class="text-[10px] text-emerald-200 truncate max-w-[110px]">未登录</p>
         </div>
       </div>
-      <div class="flex items-center space-x-2">
-        <button onclick="toggleQrModal()" class="px-2.5 py-1 text-xs bg-emerald-700/80 hover:bg-emerald-600 rounded-full flex items-center border border-emerald-400/30">
-          <i data-lucide="qr-code" class="w-3.5 h-3.5 mr-1"></i>手机扫码
+      <div class="flex items-center space-x-1.5">
+        <!-- 管理员专属: 权限审批与成员管理 -->
+        <button id="header-btn-admin-users" onclick="openUsersModal()" class="hidden px-2 py-1 text-xs bg-amber-500/95 hover:bg-amber-400 text-slate-900 font-bold rounded-full flex items-center relative shadow-sm transition">
+          <i data-lucide="users" class="w-3.5 h-3.5 mr-1"></i>权限
+          <span id="pending-count-badge" class="hidden absolute -top-1.5 -right-1.5 bg-red-600 text-white text-[10px] font-bold px-1.5 py-0.2 rounded-full border border-white animate-pulse">0</span>
         </button>
-        <button onclick="switchTab('tab-record')" class="px-2.5 py-1 text-xs bg-emerald-700/80 hover:bg-emerald-600 rounded-full flex items-center border border-emerald-400/30">
+
+        <!-- 录入按钮 (只读模式隐藏) -->
+        <button id="header-btn-record" onclick="switchTab('tab-record')" class="px-2 py-1 text-xs bg-emerald-700/80 hover:bg-emerald-600 rounded-full flex items-center border border-emerald-400/30">
           <i data-lucide="plus" class="w-3.5 h-3.5 mr-1"></i>录入
+        </button>
+
+        <button onclick="toggleQrModal()" class="p-1.5 text-xs bg-emerald-700/80 hover:bg-emerald-600 rounded-full flex items-center border border-emerald-400/30" title="手机扫码">
+          <i data-lucide="qr-code" class="w-3.5 h-3.5"></i>
+        </button>
+
+        <!-- 退出登录 -->
+        <button onclick="handleLogout()" title="退出账号" class="p-1.5 text-xs bg-emerald-950/40 hover:bg-emerald-950/70 rounded-full flex items-center border border-emerald-400/20 text-emerald-200 hover:text-white">
+          <i data-lucide="log-out" class="w-3.5 h-3.5"></i>
         </button>
       </div>
     </div>
@@ -321,14 +337,13 @@
 
         <div class="space-y-2">
           <!-- 全部导出 -->
-          <a 
-            href="/api/export/excel" 
-            download 
+          <button 
+            onclick="downloadMasterExcel()" 
             class="w-full py-3 bg-emerald-700 hover:bg-emerald-800 active:bg-emerald-900 text-white font-medium rounded-xl flex items-center justify-center space-x-2 shadow-sm text-xs transition"
           >
             <i data-lucide="download" class="w-4 h-4"></i>
             <span>📗 导出全部供应商（统一 Sheet 总台账）</span>
-          </a>
+          </button>
 
           <!-- 仅导出高意向 -->
           <button 
@@ -340,14 +355,13 @@
           </button>
 
           <!-- 导出全部照片 ZIP 包 -->
-          <a 
-            href="/api/export/photos/zip" 
-            download 
+          <button 
+            onclick="downloadPhotosZip()" 
             class="w-full py-2.5 bg-blue-50 hover:bg-blue-100 text-blue-800 font-medium rounded-xl flex items-center justify-center space-x-1.5 text-xs border border-blue-200 transition"
           >
             <i data-lucide="archive" class="w-3.5 h-3.5 text-blue-600"></i>
             <span>📦 打包下载全部实地照片与名片 (.zip)</span>
-          </a>
+          </button>
 
           <!-- 一键全量推送到坚果云 -->
           <button 
@@ -661,11 +675,11 @@
           <span class="mr-1 text-xs">🌰</span>
           <span>同步网盘</span>
         </button>
-        <button onclick="saveModalChanges()" class="flex-1 py-2 bg-emerald-600 hover:bg-emerald-700 text-white font-medium rounded-xl text-xs flex items-center justify-center space-x-1">
+        <button id="modal-btn-save" onclick="saveModalChanges()" class="flex-1 py-2 bg-emerald-600 hover:bg-emerald-700 text-white font-medium rounded-xl text-xs flex items-center justify-center space-x-1">
           <i data-lucide="check" class="w-4 h-4"></i>
           <span>保存修改</span>
         </button>
-        <button onclick="deleteCurrentSupplier()" class="px-2.5 py-2 bg-rose-50 hover:bg-rose-100 text-rose-600 font-medium rounded-xl text-xs flex items-center justify-center space-x-1">
+        <button id="modal-btn-delete" onclick="deleteCurrentSupplier()" class="px-2.5 py-2 bg-rose-50 hover:bg-rose-100 text-rose-600 font-medium rounded-xl text-xs flex items-center justify-center space-x-1">
           <i data-lucide="trash-2" class="w-3.5 h-3.5"></i>
           <span>删除</span>
         </button>
@@ -763,7 +777,651 @@
     </div>
   </div>
 
+  <!-- ================= 账号登录与注册弹窗 (Auth Modal) ================= -->
+  <div id="auth-modal" class="fixed inset-0 bg-slate-900/85 backdrop-blur-md z-50 flex items-center justify-center hidden p-4">
+    <div class="bg-white w-full max-w-sm rounded-3xl p-6 shadow-2xl space-y-4 animate-in zoom-in-95 duration-200">
+      <div class="text-center space-y-1">
+        <div class="inline-flex p-3 bg-emerald-100 text-emerald-800 rounded-2xl mb-1 text-2xl shadow-inner">🌱</div>
+        <h2 class="text-base font-bold text-slate-900">无花果供应商考察助手</h2>
+        <p class="text-xs text-slate-500">团队统一数据安全与权限管控</p>
+      </div>
+
+      <!-- 动态提示栏 -->
+      <div id="auth-notice-box" class="p-2.5 rounded-xl text-xs flex items-start space-x-2 bg-amber-50 border border-amber-200 text-amber-900">
+        <i data-lucide="shield-alert" class="w-4 h-4 text-amber-600 flex-shrink-0 mt-0.5"></i>
+        <div id="auth-notice-text">
+          系统状态加载中...
+        </div>
+      </div>
+
+      <!-- 登录/注册 Tab 切换 -->
+      <div class="flex p-1 bg-slate-100 rounded-xl">
+        <button id="tab-btn-login" onclick="switchAuthTab('login')" class="flex-1 py-1.5 text-xs font-bold rounded-lg bg-white text-emerald-800 shadow-xs transition">账号登录</button>
+        <button id="tab-btn-register" onclick="switchAuthTab('register')" class="flex-1 py-1.5 text-xs font-medium rounded-lg text-slate-500 hover:text-slate-800 transition">申请注册</button>
+      </div>
+
+      <!-- 登录表单 -->
+      <form id="form-login" onsubmit="handleLoginSubmit(event)" class="space-y-3">
+        <div>
+          <label class="block text-xs font-semibold text-slate-700 mb-1">登录账号</label>
+          <div class="relative">
+            <i data-lucide="user" class="w-4 h-4 text-slate-400 absolute left-3 top-2.5"></i>
+            <input type="text" id="login-username" required placeholder="请输入您的账号" class="w-full pl-9 pr-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs outline-none focus:border-emerald-500 focus:bg-white transition">
+          </div>
+        </div>
+        <div>
+          <label class="block text-xs font-semibold text-slate-700 mb-1">登录密码</label>
+          <div class="relative">
+            <i data-lucide="lock" class="w-4 h-4 text-slate-400 absolute left-3 top-2.5"></i>
+            <input type="password" id="login-password" required placeholder="请输入密码" class="w-full pl-9 pr-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs outline-none focus:border-emerald-500 focus:bg-white transition">
+          </div>
+        </div>
+        <button type="submit" id="btn-login-submit" class="w-full py-2.5 bg-gradient-to-r from-emerald-700 to-teal-700 hover:from-emerald-600 hover:to-teal-600 active:scale-[0.98] text-white text-xs font-bold rounded-xl shadow-md transition flex items-center justify-center space-x-1">
+          <i data-lucide="log-in" class="w-4 h-4"></i>
+          <span>登 录 系 统</span>
+        </button>
+      </form>
+
+      <!-- 注册表单 -->
+      <form id="form-register" onsubmit="handleRegisterSubmit(event)" class="space-y-2.5 hidden">
+        <div>
+          <label class="block text-xs font-semibold text-slate-700 mb-1">设置账号 *</label>
+          <div class="relative">
+            <i data-lucide="user-plus" class="w-4 h-4 text-slate-400 absolute left-3 top-2.5"></i>
+            <input type="text" id="reg-username" required placeholder="建议英文/数字 (如：zhangsan)" class="w-full pl-9 pr-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs outline-none focus:border-emerald-500 focus:bg-white transition">
+          </div>
+        </div>
+        <div>
+          <label class="block text-xs font-semibold text-slate-700 mb-1">您的姓名 / 称呼 *</label>
+          <div class="relative">
+            <i data-lucide="badge-check" class="w-4 h-4 text-slate-400 absolute left-3 top-2.5"></i>
+            <input type="text" id="reg-display-name" required placeholder="如：李总 / 采购员小张" class="w-full pl-9 pr-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs outline-none focus:border-emerald-500 focus:bg-white transition">
+          </div>
+        </div>
+        <div>
+          <label class="block text-xs font-semibold text-slate-700 mb-1">设置密码 (至少6位) *</label>
+          <div class="relative">
+            <i data-lucide="key-round" class="w-4 h-4 text-slate-400 absolute left-3 top-2.5"></i>
+            <input type="password" id="reg-password" required minlength="6" placeholder="请输入密码" class="w-full pl-9 pr-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs outline-none focus:border-emerald-500 focus:bg-white transition">
+          </div>
+        </div>
+        <div>
+          <label class="block text-xs font-semibold text-slate-700 mb-1">确认密码 *</label>
+          <div class="relative">
+            <i data-lucide="check-circle-2" class="w-4 h-4 text-slate-400 absolute left-3 top-2.5"></i>
+            <input type="password" id="reg-confirm-password" required minlength="6" placeholder="再次输入密码" class="w-full pl-9 pr-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs outline-none focus:border-emerald-500 focus:bg-white transition">
+          </div>
+        </div>
+        <button type="submit" id="btn-register-submit" class="w-full py-2.5 bg-gradient-to-r from-emerald-700 to-teal-700 hover:from-emerald-600 hover:to-teal-600 active:scale-[0.98] text-white text-xs font-bold rounded-xl shadow-md transition flex items-center justify-center space-x-1">
+          <i data-lucide="user-check" class="w-4 h-4"></i>
+          <span>提交注册申请</span>
+        </button>
+      </form>
+    </div>
+  </div>
+
+  <!-- ================= 等待审批 / 拒绝访问 全屏隔离遮罩 (Approval Screen) ================= -->
+  <div id="approval-screen" class="fixed inset-0 bg-slate-900/95 backdrop-blur-lg z-50 flex items-center justify-center hidden p-4">
+    <div class="bg-white w-full max-w-sm rounded-3xl p-6 shadow-2xl text-center space-y-4">
+      <div id="approval-icon" class="text-4xl">⏳</div>
+      <div class="space-y-1">
+        <h2 id="approval-title" class="text-base font-bold text-slate-800">账号正在等待管理员审核</h2>
+        <p id="approval-desc" class="text-xs text-slate-500 leading-relaxed">
+          您好，<span id="approval-user-name" class="font-bold text-emerald-800"></span>！您的账号已创建成功，当前权限为【待审核】。
+        </p>
+      </div>
+
+      <div class="bg-slate-50 rounded-2xl p-3 border border-slate-100 text-left text-xs space-y-1 text-slate-600">
+        <p class="font-medium text-slate-800">🛡️ 权限说明：</p>
+        <p>• 本系统包含商业底价与工厂尽调机密。</p>
+        <p>• 需由管理员为您开通<strong>只读权限</strong>或<strong>可编辑权限</strong>后方可进入系统。</p>
+      </div>
+
+      <div class="space-y-2 pt-2">
+        <button onclick="checkMyAuthStatus(true)" class="w-full py-2.5 bg-emerald-700 hover:bg-emerald-600 text-white rounded-xl text-xs font-semibold shadow-sm flex items-center justify-center space-x-1">
+          <i data-lucide="refresh-cw" class="w-3.5 h-3.5"></i>
+          <span>刷新审核结果</span>
+        </button>
+        <button onclick="handleLogout()" class="w-full py-2 bg-slate-100 hover:bg-slate-200 text-slate-600 rounded-xl text-xs font-medium">
+          退出登录
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ================= 管理员成员权限审批弹窗 (Users Modal) ================= -->
+  <div id="users-modal" class="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-end sm:items-center justify-center hidden p-0 sm:p-4">
+    <div class="bg-white w-full max-w-lg max-h-[85vh] rounded-t-3xl sm:rounded-2xl flex flex-col overflow-hidden shadow-2xl animate-in slide-in-from-bottom duration-200">
+      
+      <!-- 头部 -->
+      <div class="p-4 border-b flex items-center justify-between bg-slate-50">
+        <div class="flex items-center space-x-2">
+          <span class="text-xl">👥</span>
+          <div>
+            <h3 class="font-bold text-sm text-slate-800">团队成员与权限管理</h3>
+            <p class="text-[11px] text-slate-400">审批新成员申请 · 调配只读或可编辑权限</p>
+          </div>
+        </div>
+        <button onclick="closeUsersModal()" class="w-7 h-7 rounded-full bg-slate-100 flex items-center justify-center text-slate-500 hover:bg-slate-200">✕</button>
+      </div>
+
+      <!-- Tab 切换 -->
+      <div class="flex border-b bg-slate-100/60 p-1 text-xs">
+        <button id="users-tab-pending" onclick="switchUsersTab('pending')" class="flex-1 py-1.5 font-bold rounded-lg bg-white text-emerald-800 shadow-xs flex items-center justify-center space-x-1">
+          <span>待审批申请</span>
+          <span id="users-pending-count" class="hidden px-1.5 py-0.2 bg-red-500 text-white rounded-full text-[10px]">0</span>
+        </button>
+        <button id="users-tab-all" onclick="switchUsersTab('all')" class="flex-1 py-1.5 font-medium rounded-lg text-slate-600 hover:text-slate-900 flex items-center justify-center space-x-1">
+          <span>全部成员 (<span id="users-all-count">0</span>)</span>
+        </button>
+      </div>
+
+      <!-- 内容区域 -->
+      <div class="flex-1 overflow-y-auto p-4 space-y-3">
+        <!-- 待审批列表 -->
+        <div id="list-pending-users" class="space-y-2.5">
+          <!-- 动态注入 -->
+        </div>
+
+        <!-- 全部成员列表 -->
+        <div id="list-all-users" class="space-y-2.5 hidden">
+          <!-- 动态注入 -->
+        </div>
+      </div>
+
+      <!-- 底部说明 -->
+      <div class="p-3 border-t bg-slate-50 text-[11px] text-slate-400 flex items-center justify-between">
+        <span>💡 权限说明：只读成员无法修改或录入数据；可编辑拥有全部管理能力。</span>
+      </div>
+    </div>
+  </div>
+
   <script>
+    // ----------------- 用户会话与鉴权状态 -----------------
+    let currentUser = null; // { id, username, display_name, role: 'admin'|'viewer'|'pending'|'rejected' }
+
+    // 全局 Fetch 拦截：自动挂载 Bearer Token 鉴权头并捕获 401
+    const _originalFetch = window.fetch;
+    window.fetch = async function(url, options = {}) {
+      const token = localStorage.getItem("fig_token");
+      if (token && typeof url === "string" && url.startsWith("/api/")) {
+        if (!options.headers) {
+          options.headers = {};
+        }
+        if (options.headers instanceof Headers) {
+          if (!options.headers.has("Authorization")) {
+            options.headers.set("Authorization", `Bearer ${token}`);
+          }
+        } else {
+          if (!options.headers["Authorization"]) {
+            options.headers["Authorization"] = `Bearer ${token}`;
+          }
+        }
+      }
+      const resp = await _originalFetch(url, options);
+      if (resp.status === 401 && !url.includes("/api/auth/login") && !url.includes("/api/auth/register") && !url.includes("/api/auth/status")) {
+        localStorage.removeItem("fig_token");
+        currentUser = null;
+        showAuthModal();
+      }
+      return resp;
+    };
+
+    function getAuthUrl(url) {
+      const token = localStorage.getItem("fig_token");
+      if (!token) return url;
+      return url + (url.includes("?") ? "&" : "?") + "token=" + encodeURIComponent(token);
+    }
+
+    // 检查并同步登录鉴权状态
+    async function checkMyAuthStatus(isManualRefresh = false) {
+      const token = localStorage.getItem("fig_token");
+      if (!token) {
+        showAuthModal();
+        return;
+      }
+
+      try {
+        const resp = await fetch("/api/auth/me");
+        if (!resp.ok) {
+          localStorage.removeItem("fig_token");
+          currentUser = null;
+          showAuthModal();
+          return;
+        }
+
+        const res = await resp.json();
+        currentUser = res.data;
+        updateUserUI();
+
+        if (currentUser.role === "pending") {
+          document.getElementById("approval-title").innerText = "账号正在等待管理员审核";
+          document.getElementById("approval-desc").innerHTML = `您好，<span class="font-bold text-emerald-800">${escapeHtml(currentUser.display_name || currentUser.username)}</span>！您的账号已创建成功，当前权限为【待审核】。`;
+          document.getElementById("approval-icon").innerText = "⏳";
+          document.getElementById("approval-screen").classList.remove("hidden");
+          document.getElementById("auth-modal").classList.add("hidden");
+          if (isManualRefresh) {
+            showToast("审核状态仍为待审核，请联系管理员为您审批开通");
+          }
+          return;
+        }
+
+        if (currentUser.role === "rejected") {
+          document.getElementById("approval-title").innerText = "访问申请已被拒绝";
+          document.getElementById("approval-desc").innerText = "很抱歉，您的访问申请已被管理员拒绝。如有疑问请联系管理员。";
+          document.getElementById("approval-icon").innerText = "🚫";
+          document.getElementById("approval-screen").classList.remove("hidden");
+          document.getElementById("auth-modal").classList.add("hidden");
+          return;
+        }
+
+        // 正常权限: admin 或 viewer
+        document.getElementById("approval-screen").classList.add("hidden");
+        document.getElementById("auth-modal").classList.add("hidden");
+
+        if (isManualRefresh) {
+          showToast(`✅ 审核已通过！欢迎进入系统，您的权限为：${currentUser.role === 'admin' ? '最高可编辑' : '只读成员'}`);
+        }
+
+        // 重新载入数据
+        await loadSuppliers();
+        await updateStats();
+
+        // 如果是管理员，获取待审批用户数量
+        if (currentUser.role === "admin") {
+          fetchPendingUsersCount();
+          loadJgySettings();
+        }
+      } catch (e) {
+        console.error("鉴权检查失败:", e);
+      }
+    }
+
+    // 刷新管理员按钮上的待审核红点计数
+    async function fetchPendingUsersCount() {
+      if (!currentUser || currentUser.role !== "admin") return;
+      try {
+        const resp = await fetch("/api/admin/users");
+        if (resp.ok) {
+          const res = await resp.json();
+          const pendingCount = res.data.filter(u => u.role === "pending").length;
+          const badge = document.getElementById("pending-count-badge");
+          if (pendingCount > 0) {
+            badge.innerText = pendingCount;
+            badge.classList.remove("hidden");
+          } else {
+            badge.classList.add("hidden");
+          }
+        }
+      } catch (e) {}
+    }
+
+    // 更新页面与各组件的权限展示
+    function updateUserUI() {
+      if (!currentUser) return;
+
+      const userText = document.getElementById("header-user-text");
+      const roleBadge = document.getElementById("header-role-badge");
+      const adminUsersBtn = document.getElementById("header-btn-admin-users");
+      const headerRecordBtn = document.getElementById("header-btn-record");
+      const navRecordBtn = document.getElementById("nav-btn-record");
+      const navSettingsBtn = document.getElementById("nav-btn-settings");
+      const bottomNavGrid = document.querySelector("nav > div");
+
+      userText.innerText = currentUser.display_name || currentUser.username;
+
+      if (currentUser.role === "admin") {
+        roleBadge.innerText = "👑 最高权限";
+        roleBadge.className = "px-1.5 py-0.2 text-[10px] rounded-full bg-amber-400 text-amber-950 font-bold border border-amber-300";
+        adminUsersBtn.classList.remove("hidden");
+        headerRecordBtn.classList.remove("hidden");
+        navRecordBtn.classList.remove("hidden");
+        navSettingsBtn.classList.remove("hidden");
+        if (bottomNavGrid) {
+          bottomNavGrid.className = "max-w-md mx-auto grid grid-cols-4 py-2 px-1 text-center";
+        }
+      } else if (currentUser.role === "viewer") {
+        roleBadge.innerText = "👁️ 只读权限";
+        roleBadge.className = "px-1.5 py-0.2 text-[10px] rounded-full bg-sky-200 text-sky-900 font-medium border border-sky-300";
+        adminUsersBtn.classList.add("hidden");
+        headerRecordBtn.classList.add("hidden");
+        navRecordBtn.classList.add("hidden");
+        navSettingsBtn.classList.add("hidden");
+        if (bottomNavGrid) {
+          bottomNavGrid.className = "max-w-md mx-auto grid grid-cols-2 py-2 px-1 text-center";
+        }
+        // 如果当前停留在录入或设置页，自动切回供应商列表
+        const activeTab = document.querySelector(".tab-page:not(.hidden)");
+        if (activeTab && (activeTab.id === "tab-record" || activeTab.id === "tab-settings")) {
+          switchTab("tab-list");
+        }
+      }
+    }
+
+    // 弹出登录/注册窗口
+    async function showAuthModal() {
+      const modal = document.getElementById("auth-modal");
+      modal.classList.remove("hidden");
+      document.getElementById("approval-screen").classList.add("hidden");
+
+      try {
+        const resp = await _originalFetch("/api/auth/status");
+        const res = await resp.json();
+        const noticeBox = document.getElementById("auth-notice-box");
+        const noticeText = document.getElementById("auth-notice-text");
+
+        if (!res.has_admin) {
+          noticeBox.className = "p-2.5 rounded-xl text-xs flex items-start space-x-2 bg-emerald-50 border border-emerald-200 text-emerald-900";
+          noticeText.innerHTML = "👑 <strong>系统首次初始化</strong>：当前暂无管理员账号，注册的第一个账号将自动设为【最高权限管理员】！";
+          switchAuthTab("register");
+        } else {
+          noticeBox.className = "p-2.5 rounded-xl text-xs flex items-start space-x-2 bg-amber-50 border border-amber-200 text-amber-900";
+          noticeText.innerHTML = "🔒 <strong>团队内部系统</strong>：新用户注册后默认无任何权限，需联系管理员在后台审核授权后方可进入。";
+          switchAuthTab("login");
+        }
+      } catch (e) {
+        switchAuthTab("login");
+      }
+      lucide.createIcons();
+    }
+
+    function switchAuthTab(tab) {
+      const btnLogin = document.getElementById("tab-btn-login");
+      const btnReg = document.getElementById("tab-btn-register");
+      const formLogin = document.getElementById("form-login");
+      const formReg = document.getElementById("form-register");
+
+      if (tab === "login") {
+        btnLogin.className = "flex-1 py-1.5 text-xs font-bold rounded-lg bg-white text-emerald-800 shadow-xs transition";
+        btnReg.className = "flex-1 py-1.5 text-xs font-medium rounded-lg text-slate-500 hover:text-slate-800 transition";
+        formLogin.classList.remove("hidden");
+        formReg.classList.add("hidden");
+      } else {
+        btnReg.className = "flex-1 py-1.5 text-xs font-bold rounded-lg bg-white text-emerald-800 shadow-xs transition";
+        btnLogin.className = "flex-1 py-1.5 text-xs font-medium rounded-lg text-slate-500 hover:text-slate-800 transition";
+        formReg.classList.remove("hidden");
+        formLogin.classList.add("hidden");
+      }
+      lucide.createIcons();
+    }
+
+    async function handleLoginSubmit(e) {
+      e.preventDefault();
+      const username = document.getElementById("login-username").value.trim();
+      const password = document.getElementById("login-password").value.trim();
+      const btn = document.getElementById("btn-login-submit");
+
+      btn.disabled = true;
+      btn.innerHTML = `<span class="animate-spin mr-1">⌛</span> 登录中...`;
+
+      try {
+        const resp = await _originalFetch("/api/auth/login", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ username, password })
+        });
+        const res = await resp.json();
+        if (resp.ok && res.status === "ok") {
+          localStorage.setItem("fig_token", res.data.token);
+          currentUser = res.data.user;
+          showToast("🎉 登录成功！");
+          checkMyAuthStatus();
+        } else {
+          alert("登录失败：" + (res.detail || res.message || "账号或密码错误"));
+        }
+      } catch (err) {
+        alert("网络请求失败，请稍后重试");
+      } finally {
+        btn.disabled = false;
+        btn.innerHTML = `<i data-lucide="log-in" class="w-4 h-4 mr-1"></i><span>登 录 系 统</span>`;
+        lucide.createIcons();
+      }
+    }
+
+    async function handleRegisterSubmit(e) {
+      e.preventDefault();
+      const username = document.getElementById("reg-username").value.trim();
+      const display_name = document.getElementById("reg-display-name").value.trim();
+      const password = document.getElementById("reg-password").value.trim();
+      const confirm_password = document.getElementById("reg-confirm-password").value.trim();
+      const btn = document.getElementById("btn-register-submit");
+
+      if (password !== confirm_password) {
+        alert("两次输入的密码不一致，请重新检查！");
+        return;
+      }
+
+      btn.disabled = true;
+      btn.innerHTML = `<span class="animate-spin mr-1">⌛</span> 提交中...`;
+
+      try {
+        const resp = await _originalFetch("/api/auth/register", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ username, display_name, password })
+        });
+        const res = await resp.json();
+        if (resp.ok && res.status === "ok") {
+          localStorage.setItem("fig_token", res.data.token);
+          currentUser = res.data.user;
+          alert(res.message);
+          checkMyAuthStatus();
+        } else {
+          alert("注册失败：" + (res.detail || res.message || "请检查输入"));
+        }
+      } catch (err) {
+        alert("网络请求失败，请稍后重试");
+      } finally {
+        btn.disabled = false;
+        btn.innerHTML = `<i data-lucide="user-check" class="w-4 h-4 mr-1"></i><span>提交注册申请</span>`;
+        lucide.createIcons();
+      }
+    }
+
+    async function handleLogout() {
+      if (!confirm("确定要退出当前登录账号吗？")) return;
+      try {
+        await fetch("/api/auth/logout", { method: "POST" });
+      } catch (e) {}
+      localStorage.removeItem("fig_token");
+      currentUser = null;
+      showToast("已退出登录");
+      showAuthModal();
+    }
+
+    // ----------------- 管理员权限审批与成员管理 -----------------
+    let adminUsersList = [];
+
+    async function openUsersModal() {
+      if (!currentUser || currentUser.role !== "admin") {
+        alert("仅最高管理员有权限管理团队成员！");
+        return;
+      }
+      document.getElementById("users-modal").classList.remove("hidden");
+      await loadAdminUsers();
+      switchUsersTab("pending");
+      lucide.createIcons();
+    }
+
+    function closeUsersModal() {
+      document.getElementById("users-modal").classList.add("hidden");
+    }
+
+    function switchUsersTab(tab) {
+      const tabPending = document.getElementById("users-tab-pending");
+      const tabAll = document.getElementById("users-tab-all");
+      const listPending = document.getElementById("list-pending-users");
+      const listAll = document.getElementById("list-all-users");
+
+      if (tab === "pending") {
+        tabPending.className = "flex-1 py-1.5 font-bold rounded-lg bg-white text-emerald-800 shadow-xs flex items-center justify-center space-x-1";
+        tabAll.className = "flex-1 py-1.5 font-medium rounded-lg text-slate-600 hover:text-slate-900 flex items-center justify-center space-x-1";
+        listPending.classList.remove("hidden");
+        listAll.classList.add("hidden");
+      } else {
+        tabAll.className = "flex-1 py-1.5 font-bold rounded-lg bg-white text-emerald-800 shadow-xs flex items-center justify-center space-x-1";
+        tabPending.className = "flex-1 py-1.5 font-medium rounded-lg text-slate-600 hover:text-slate-900 flex items-center justify-center space-x-1";
+        listAll.classList.remove("hidden");
+        listPending.classList.add("hidden");
+      }
+      lucide.createIcons();
+    }
+
+    async function loadAdminUsers() {
+      try {
+        const resp = await fetch("/api/admin/users");
+        if (resp.ok) {
+          const res = await resp.json();
+          adminUsersList = res.data;
+          renderAdminUsers();
+        }
+      } catch (e) {
+        console.error(e);
+      }
+    }
+
+    function renderAdminUsers() {
+      const pendingUsers = adminUsersList.filter(u => u.role === "pending");
+      const allUsers = adminUsersList;
+
+      // 更新 Tab 计数
+      document.getElementById("users-all-count").innerText = allUsers.length;
+      const pCountBadge = document.getElementById("users-pending-count");
+      const headerPendingBadge = document.getElementById("pending-count-badge");
+      if (pendingUsers.length > 0) {
+        pCountBadge.innerText = pendingUsers.length;
+        pCountBadge.classList.remove("hidden");
+        headerPendingBadge.innerText = pendingUsers.length;
+        headerPendingBadge.classList.remove("hidden");
+      } else {
+        pCountBadge.classList.add("hidden");
+        headerPendingBadge.classList.add("hidden");
+      }
+
+      // 渲染待审批列表
+      const listPending = document.getElementById("list-pending-users");
+      if (pendingUsers.length === 0) {
+        listPending.innerHTML = `
+          <div class="p-8 text-center text-slate-400 space-y-1">
+            <div class="text-3xl">☕</div>
+            <p class="text-xs font-semibold text-slate-600">暂无待审批的新账号申请</p>
+            <p class="text-[11px]">新团队成员注册后，会在此处提醒您审批开通权限</p>
+          </div>
+        `;
+      } else {
+        listPending.innerHTML = pendingUsers.map(u => `
+          <div class="bg-amber-50/70 border border-amber-200 rounded-2xl p-3.5 space-y-2.5">
+            <div class="flex items-start justify-between">
+              <div>
+                <div class="flex items-center space-x-2">
+                  <span class="font-bold text-sm text-slate-900">${escapeHtml(u.display_name || u.username)}</span>
+                  <span class="text-xs text-slate-400">(@${escapeHtml(u.username)})</span>
+                </div>
+                <p class="text-[11px] text-slate-400 mt-0.5">申请时间: ${u.created_at}</p>
+              </div>
+              <span class="px-2 py-0.5 bg-amber-100 text-amber-800 border border-amber-300 text-[10px] font-bold rounded-full">待审核</span>
+            </div>
+            <div class="pt-1 flex items-center space-x-2">
+              <button onclick="changeRole(${u.id}, 'admin')" class="flex-1 py-1.5 bg-amber-500 hover:bg-amber-600 active:scale-95 text-white font-bold rounded-xl text-xs flex items-center justify-center space-x-1 shadow-xs">
+                <i data-lucide="shield-check" class="w-3.5 h-3.5"></i>
+                <span>开通最高编辑</span>
+              </button>
+              <button onclick="changeRole(${u.id}, 'viewer')" class="flex-1 py-1.5 bg-sky-600 hover:bg-sky-700 active:scale-95 text-white font-bold rounded-xl text-xs flex items-center justify-center space-x-1 shadow-xs">
+                <i data-lucide="eye" class="w-3.5 h-3.5"></i>
+                <span>开通只读权限</span>
+              </button>
+              <button onclick="changeRole(${u.id}, 'rejected')" class="px-3 py-1.5 bg-slate-200 hover:bg-rose-100 text-slate-600 hover:text-rose-700 font-medium rounded-xl text-xs">
+                拒绝
+              </button>
+            </div>
+          </div>
+        `).join("");
+      }
+
+      // 渲染全部成员列表
+      const listAll = document.getElementById("list-all-users");
+      listAll.innerHTML = allUsers.map(u => {
+        const isSelf = currentUser && currentUser.id === u.id;
+        let roleBadgeHtml = "";
+        if (u.role === "admin") {
+          roleBadgeHtml = `<span class="px-2 py-0.5 bg-amber-100 text-amber-900 font-bold border border-amber-300 rounded-full text-[10px]">👑 最高可编辑</span>`;
+        } else if (u.role === "viewer") {
+          roleBadgeHtml = `<span class="px-2 py-0.5 bg-sky-100 text-sky-900 font-bold border border-sky-300 rounded-full text-[10px]">👁️ 只读权限</span>`;
+        } else if (u.role === "pending") {
+          roleBadgeHtml = `<span class="px-2 py-0.5 bg-slate-100 text-slate-600 font-medium border border-slate-200 rounded-full text-[10px]">⏳ 待审核</span>`;
+        } else {
+          roleBadgeHtml = `<span class="px-2 py-0.5 bg-rose-100 text-rose-700 font-bold border border-rose-200 rounded-full text-[10px]">🚫 已拒绝</span>`;
+        }
+
+        return `
+          <div class="bg-white border rounded-2xl p-3 flex items-center justify-between hover:border-slate-300 transition">
+            <div>
+              <div class="flex items-center space-x-2">
+                <span class="font-bold text-xs text-slate-900">${escapeHtml(u.display_name || u.username)}</span>
+                <span class="text-[11px] text-slate-400">(@${escapeHtml(u.username)})</span>
+                ${isSelf ? `<span class="px-1.5 py-0.2 bg-emerald-100 text-emerald-800 text-[9px] rounded font-semibold">当前账号</span>` : ""}
+              </div>
+              <div class="mt-1 flex items-center space-x-2">
+                ${roleBadgeHtml}
+                <span class="text-[10px] text-slate-400">${u.created_at.split(' ')[0]} 注册</span>
+              </div>
+            </div>
+
+            <div class="flex items-center space-x-2">
+              <select onchange="changeRole(${u.id}, this.value)" ${isSelf ? 'disabled' : ''} class="text-xs bg-slate-50 border border-slate-200 rounded-lg p-1.5 outline-none font-medium">
+                <option value="admin" ${u.role === 'admin' ? 'selected' : ''}>👑 最高可编辑</option>
+                <option value="viewer" ${u.role === 'viewer' ? 'selected' : ''}>👁️ 只读权限</option>
+                <option value="rejected" ${u.role === 'rejected' ? 'selected' : ''}>🚫 拒绝访问</option>
+                <option value="pending" ${u.role === 'pending' ? 'selected' : ''}>⏳ 设为待审</option>
+              </select>
+              ${!isSelf ? `
+                <button onclick="deleteUser(${u.id}, '${escapeHtml(u.display_name || u.username)}')" title="删除该成员账号" class="p-1.5 text-slate-300 hover:text-rose-600 transition">
+                  <i data-lucide="trash-2" class="w-3.5 h-3.5"></i>
+                </button>
+              ` : ''}
+            </div>
+          </div>
+        `;
+      }).join("");
+
+      lucide.createIcons();
+    }
+
+    async function changeRole(userId, newRole) {
+      try {
+        const resp = await fetch(`/api/admin/users/${userId}/role`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ role: newRole })
+        });
+        const res = await resp.json();
+        if (resp.ok && res.status === "ok") {
+          showToast(`已成功将成员权限更改为：${newRole}`);
+          await loadAdminUsers();
+        } else {
+          alert("操作失败：" + (res.detail || res.message));
+        }
+      } catch (e) {
+        showToast("请求失败，请检查网络");
+      }
+    }
+
+    async function deleteUser(userId, name) {
+      if (!confirm(`确定要彻底删除成员【${name}】的账号吗？删除后该用户将无法再登录系统。`)) return;
+      try {
+        const resp = await fetch(`/api/admin/users/${userId}`, { method: "DELETE" });
+        const res = await resp.json();
+        if (resp.ok && res.status === "ok") {
+          showToast("成员账号已删除");
+          await loadAdminUsers();
+        } else {
+          alert("删除失败：" + (res.detail || res.message));
+        }
+      } catch (e) {
+        showToast("请求失败");
+      }
+    }
+
     function toggleQrModal() {
       const m = document.getElementById("qr-modal");
       m.classList.toggle("hidden");
@@ -889,7 +1547,11 @@
       } else {
         btnPlanned.className = "flex-1 py-2 rounded-xl bg-white text-amber-900 shadow-xs flex items-center justify-center transition font-bold";
         btnVisited.className = "flex-1 py-2 rounded-xl text-slate-600 hover:text-slate-900 flex items-center justify-center transition";
-        addPlanBtn.classList.remove("hidden");
+        if (currentUser && currentUser.role === 'admin') {
+          addPlanBtn.classList.remove("hidden");
+        } else {
+          addPlanBtn.classList.add("hidden");
+        }
         filterBox.classList.add("hidden");
       }
 
@@ -1039,20 +1701,24 @@
       const container = document.getElementById("modal-photo-grid");
       if (!container) return;
 
+      const isViewer = currentUser && currentUser.role === 'viewer';
+
       let html = modalPhotos.map((url, idx) => `
         <div class="relative group rounded-xl overflow-hidden border border-slate-200 h-20 bg-slate-100">
           <img src="${url}" class="w-full h-full object-cover cursor-pointer" onclick="openLightbox('${url}')">
-          <button onclick="removeModalPhoto(${idx})" class="absolute top-1 right-1 w-5 h-5 rounded-full bg-black/60 text-white flex items-center justify-center text-xs">✕</button>
+          ${!isViewer ? `<button onclick="removeModalPhoto(${idx})" class="absolute top-1 right-1 w-5 h-5 rounded-full bg-black/60 text-white flex items-center justify-center text-xs">✕</button>` : ''}
         </div>
       `).join("");
 
-      html += `
-        <label class="border-2 border-dashed border-slate-200 hover:border-emerald-400 bg-slate-50 hover:bg-emerald-50/30 rounded-xl h-20 flex flex-col items-center justify-center cursor-pointer transition text-slate-400 hover:text-emerald-600">
-          <i data-lucide="plus" class="w-5 h-5 mb-0.5"></i>
-          <span class="text-[10px]">补拍/追加</span>
-          <input type="file" accept="image/*" multiple class="hidden" onchange="handlePhotoUpload(event, true)">
-        </label>
-      `;
+      if (!isViewer) {
+        html += `
+          <label class="border-2 border-dashed border-slate-200 hover:border-emerald-400 bg-slate-50 hover:bg-emerald-50/30 rounded-xl h-20 flex flex-col items-center justify-center cursor-pointer transition text-slate-400 hover:text-emerald-600">
+            <i data-lucide="plus" class="w-5 h-5 mb-0.5"></i>
+            <span class="text-[10px]">补拍/追加</span>
+            <input type="file" accept="image/*" multiple class="hidden" onchange="handlePhotoUpload(event, true)">
+          </label>
+        `;
+      }
 
       container.innerHTML = html;
       lucide.createIcons();
@@ -1077,6 +1743,12 @@
 
     // 标签页切换
     function switchTab(tabId) {
+      if (currentUser && currentUser.role === "viewer") {
+        if (tabId === "tab-record" || tabId === "tab-settings") {
+          showToast("只读权限无法访问该功能");
+          tabId = "tab-list";
+        }
+      }
       document.querySelectorAll(".tab-page").forEach(el => el.classList.add("hidden"));
       document.getElementById(tabId).classList.remove("hidden");
 
@@ -1363,15 +2035,19 @@
             </div>
 
             <div class="flex items-center space-x-1.5">
-              <button onclick="openEditPlanModal(${item.id})" class="px-2.5 py-1.5 rounded-lg bg-amber-50 hover:bg-amber-100 text-amber-900 font-medium text-xs border border-amber-300 flex items-center shadow-xs">
-                <i data-lucide="edit-3" class="w-3 h-3 mr-1 text-amber-600"></i>编辑行程
-              </button>
-              <button onclick="deleteCurrentSupplierDirect(${item.id})" class="px-2 py-1.5 text-slate-400 hover:text-rose-600 text-xs">
-                删除
-              </button>
-              <button onclick="startInspectFromPlan(${item.id})" class="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 active:bg-emerald-800 text-white font-medium rounded-xl text-xs flex items-center shadow-xs">
-                <i data-lucide="pencil" class="w-3 h-3 mr-1"></i>现场考察录入
-              </button>
+              ${(currentUser && currentUser.role === 'admin') ? `
+                <button onclick="openEditPlanModal(${item.id})" class="px-2.5 py-1.5 rounded-lg bg-amber-50 hover:bg-amber-100 text-amber-900 font-medium text-xs border border-amber-300 flex items-center shadow-xs">
+                  <i data-lucide="edit-3" class="w-3 h-3 mr-1 text-amber-600"></i>编辑行程
+                </button>
+                <button onclick="deleteCurrentSupplierDirect(${item.id})" class="px-2 py-1.5 text-slate-400 hover:text-rose-600 text-xs">
+                  删除
+                </button>
+                <button onclick="startInspectFromPlan(${item.id})" class="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 active:bg-emerald-800 text-white font-medium rounded-xl text-xs flex items-center shadow-xs">
+                  <i data-lucide="pencil" class="w-3 h-3 mr-1"></i>现场考察录入
+                </button>
+              ` : `
+                <span class="text-[11px] text-slate-400 font-medium px-2 py-1 bg-slate-50 rounded-lg border">待考察行程 (只读)</span>
+              `}
             </div>
           </div>
         </div>
@@ -1468,15 +2144,19 @@
                   <i data-lucide="phone-call" class="w-3 h-3 mr-1"></i>呼叫
                 </a>
               ` : ''}
-              <button onclick="quickRevertToPlanned(${item.id}, '${escapeHtml(item.company_name)}')" class="px-2 py-1 rounded-lg bg-amber-50 hover:bg-amber-100 text-amber-800 text-xs flex items-center border border-amber-200" title="误操作？一键退回到待拜访行程">
-                <i data-lucide="rotate-ccw" class="w-3 h-3 mr-0.5 text-amber-600"></i>退回待办
-              </button>
-              <a href="/api/export/supplier/${item.id}" download class="px-2 py-1 rounded-lg bg-emerald-50 hover:bg-emerald-100 text-emerald-800 text-xs flex items-center border border-emerald-300 font-medium" title="导出包含文字和现场照片的独立尽调表格">
+              ${(currentUser && currentUser.role === 'admin') ? `
+                <button onclick="quickRevertToPlanned(${item.id}, '${escapeHtml(item.company_name)}')" class="px-2 py-1 rounded-lg bg-amber-50 hover:bg-amber-100 text-amber-800 text-xs flex items-center border border-amber-200" title="误操作？一键退回到待拜访行程">
+                  <i data-lucide="rotate-ccw" class="w-3 h-3 mr-0.5 text-amber-600"></i>退回待办
+                </button>
+              ` : ''}
+              <a href="${getAuthUrl('/api/export/supplier/' + item.id)}" download class="px-2 py-1 rounded-lg bg-emerald-50 hover:bg-emerald-100 text-emerald-800 text-xs flex items-center border border-emerald-300 font-medium" title="导出包含文字和现场照片的独立尽调表格">
                 <i data-lucide="file-spreadsheet" class="w-3.5 h-3.5 mr-1 text-emerald-600"></i>图文表
               </a>
-              <button onclick="syncSingleToJgy(${item.id})" class="px-2 py-1 rounded-lg bg-amber-50 hover:bg-amber-100 text-amber-800 text-xs flex items-center border border-amber-300 font-medium" title="一键同步该厂尽调表与原照至坚果云">
-                <span class="mr-0.5 text-xs">🌰</span>坚果云
-              </button>
+              ${(currentUser && currentUser.role === 'admin') ? `
+                <button onclick="syncSingleToJgy(${item.id})" class="px-2 py-1 rounded-lg bg-amber-50 hover:bg-amber-100 text-amber-800 text-xs flex items-center border border-amber-300 font-medium" title="一键同步该厂尽调表与原照至坚果云">
+                  <span class="mr-0.5 text-xs">🌰</span>坚果云
+                </button>
+              ` : ''}
               <button onclick="openDetailModal(${item.id})" class="px-2 py-1 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-600 text-xs">
                 详情
               </button>
@@ -1570,7 +2250,7 @@
         const res = await resp.json();
         if (res.status === "ok" && res.data.length > 0) {
           const ids = res.data.map(x => x.id).join(",");
-          window.location.href = `/api/export/excel?ids=${ids}`;
+          window.location.href = getAuthUrl(`/api/export/excel?ids=${ids}`);
           showToast(`正在导出 ${res.data.length} 家高意向供应商总台账...`);
         } else {
           showToast("暂无高意向供应商，请先录入或标记");
@@ -1578,6 +2258,14 @@
       } catch (e) {
         showToast("导出失败");
       }
+    }
+
+    function downloadMasterExcel() {
+      window.location.href = getAuthUrl('/api/export/excel');
+    }
+
+    function downloadPhotosZip() {
+      window.location.href = getAuthUrl('/api/export/photos/zip');
     }
 
     // 统计各意向数量与行程数量
@@ -1683,7 +2371,36 @@
           document.getElementById("modal-extra-notes").value = d.extra_notes || "";
           
           const expBtn = document.getElementById("modal-export-btn");
-          if (expBtn) expBtn.href = `/api/export/supplier/${d.id}`;
+          if (expBtn) expBtn.href = getAuthUrl(`/api/export/supplier/${d.id}`);
+
+          const isViewer = currentUser && currentUser.role === 'viewer';
+          const toggleBtn = document.getElementById("modal-btn-toggle-status");
+          const saveBtn = document.getElementById("modal-btn-save");
+          const delBtn = document.getElementById("modal-btn-delete");
+          const jgyBtn = document.getElementById("modal-jgy-btn");
+
+          if (isViewer) {
+            if (toggleBtn) toggleBtn.classList.add("hidden");
+            if (saveBtn) saveBtn.classList.add("hidden");
+            if (delBtn) delBtn.classList.add("hidden");
+            if (jgyBtn) jgyBtn.classList.add("hidden");
+          } else {
+            if (toggleBtn) toggleBtn.classList.remove("hidden");
+            if (saveBtn) saveBtn.classList.remove("hidden");
+            if (delBtn) delBtn.classList.remove("hidden");
+            if (jgyBtn) jgyBtn.classList.remove("hidden");
+          }
+
+          const modalInputs = document.querySelectorAll("#detail-modal input, #detail-modal textarea, #detail-modal select");
+          modalInputs.forEach(el => {
+            if (el.id !== "modal-id") {
+              if (isViewer) {
+                el.setAttribute("disabled", "true");
+              } else {
+                el.removeAttribute("disabled");
+              }
+            }
+          });
 
           // 解析照片
           try {
@@ -2102,9 +2819,9 @@
       }
     }
 
-    // 初始化加载
+    // 初始化加载：鉴权检测并加载业务
     window.addEventListener("DOMContentLoaded", () => {
-      loadJgySettings();
+      checkMyAuthStatus();
       lucide.createIcons();
     });
   </script>
