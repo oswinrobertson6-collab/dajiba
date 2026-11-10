@@ -4,6 +4,7 @@ services:
     runtime: docker
     plan: free
     region: singapore
+    autoDeploy: true
     envVars:
       - key: API_KEY
         value: sk-jhtkzuieckjmpdkssxahkhdjajmnymsuoqtmnpvsbkvostjm
