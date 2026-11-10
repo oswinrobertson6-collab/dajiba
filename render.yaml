@@ -12,3 +12,5 @@ services:
         value: https://api.siliconflow.cn/v1
       - key: MODEL
         value: Qwen/Qwen2.5-7B-Instruct
+      - key: GITHUB_REPO
+        value: oswinrobertson6-collab/dajiba
