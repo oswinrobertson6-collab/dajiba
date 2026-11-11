@@ -195,6 +195,8 @@ def init_db():
         cursor.execute("ALTER TABLE suppliers ADD COLUMN plan_date TEXT")
     if "plan_notes" not in columns:
         cursor.execute("ALTER TABLE suppliers ADD COLUMN plan_notes TEXT")
+    if "contacts" not in columns:
+        cursor.execute("ALTER TABLE suppliers ADD COLUMN contacts TEXT DEFAULT '[]'")
 
     # 系统设置表 (用于存储 AI 配置)
     cursor.execute("""
@@ -423,6 +425,7 @@ class SupplierCreate(BaseModel):
     contact_name: Optional[str] = ""
     contact_phone: Optional[str] = ""
     contact_role: Optional[str] = ""
+    contacts: Optional[str] = "[]"
     raw_notes: Optional[str] = ""
     extra_notes: Optional[str] = ""
     images: Optional[str] = "[]"
@@ -601,6 +604,33 @@ def rule_based_extract(text: str) -> Dict[str, Any]:
     else:
         res["plan_date"] = ""
 
+    # 10. 多联系人识别 (如: 总经理 某某某 电话xxx  业务负责人 某某某 电话xxx)
+    contacts_list = []
+    contact_segments = re.findall(r"(?:(总经理|业务负责人|业务经理|销售经理|销售负责人|厂长|经理|副总|老板|负责人|对接人)[\s:：]*([\u4e00-\u9fa5]{2,4})?[\s,，]*(?:电话|手机|联系方式|微信|号)?[\s:：]*(1[3-9]\d{9}|\d{3,4}-\d{7,8}))", text)
+    if contact_segments:
+        for seg_role, seg_name, seg_phone in contact_segments:
+            contacts_list.append({
+                "role": seg_role.strip(),
+                "name": seg_name.strip() if seg_name else "",
+                "phone": seg_phone.strip() if seg_phone else ""
+            })
+    
+    if not contacts_list:
+        if res.get("contact_name") or res.get("contact_phone") or res.get("contact_role"):
+            contacts_list.append({
+                "role": res.get("contact_role", ""),
+                "name": res.get("contact_name", ""),
+                "phone": res.get("contact_phone", "")
+            })
+    
+    res["contacts"] = contacts_list
+    if contacts_list and not res.get("contact_phone"):
+        res["contact_phone"] = contacts_list[0].get("phone", "")
+    if contacts_list and not res.get("contact_name"):
+        res["contact_name"] = contacts_list[0].get("name", "")
+    if contacts_list and not res.get("contact_role"):
+        res["contact_role"] = contacts_list[0].get("role", "")
+
     return res
 
 async def ai_extract_info(text: str, settings: Dict[str, str]) -> Dict[str, Any]:
@@ -624,9 +654,11 @@ async def ai_extract_info(text: str, settings: Dict[str, str]) -> Dict[str, Any]
 - price_terms: 供货报价/参考价格（非常重要：如果提到多款不同产品报价，请用分号或顿号清晰分开，每款产品标明品类与价格，例如："巧克力: 13元/盒；无花果干: 30元/斤；冻干片: 85元/kg"）
 - payment_terms: 账期与付款结算方式
 - cooperation_intent: 合作意向度（若评价偏负面或怀疑外采贴牌则评为"低"；配合度高则为"高"，其他为"中"）
-- contact_name: 联系人姓名（注意：提到的上下游合作方、知名品牌客户绝不是联系人！）
-- contact_role: 职务（如白总则职务为总经理或负责人，若无明确职务可留空）
-- contact_phone: 手机号或联系电话
+- contacts: 关键联系人列表数组。支持提取多位联系人（如总经理、业务负责人、厂长、销售经理等），每个对象包含 role (职务), name (姓名), phone (电话或微信)。
+  例如：[{{"role": "总经理", "name": "张某某", "phone": "13900000000"}}, {{"role": "业务负责人", "name": "李某某", "phone": "13800000000"}}]
+- contact_name: 第一联系人姓名（注意：提到的上下游合作方、知名品牌客户绝不是联系人！）
+- contact_role: 第一联系人职务（如总经理/业务负责人/厂长等）
+- contact_phone: 第一联系人手机号或联系电话
 - plan_date: 预定拜访日期/时间（若提到计划何时去拜访，如“下周三”、“明天上午10点”、“11月18号”等，尽量提取为日期如"YYYY-MM-DD"或简要时间说明，未提及留空""）
 - extra_notes: 【核心极其重要！】必须完整记录所有商业背景与评价，包括：
   1. 上下游合作关系（例如：为谁供货、是哪个品牌/果园的合作商、代工厂、OEM伙伴）；
@@ -665,6 +697,23 @@ async def ai_extract_info(text: str, settings: Dict[str, str]) -> Dict[str, Any]
                     parsed = json.loads(json_match.group(0))
                 else:
                     parsed = json.loads(content)
+
+                # 确保 contacts 数组完整
+                if "contacts" not in parsed or not isinstance(parsed.get("contacts"), list) or len(parsed["contacts"]) == 0:
+                    c_name = parsed.get("contact_name", "")
+                    c_role = parsed.get("contact_role", "")
+                    c_phone = parsed.get("contact_phone", "")
+                    if c_name or c_role or c_phone:
+                        parsed["contacts"] = [{"role": c_role, "name": c_name, "phone": c_phone}]
+                    else:
+                        parsed["contacts"] = []
+                else:
+                    first_c = parsed["contacts"][0]
+                    if isinstance(first_c, dict):
+                        if not parsed.get("contact_name"): parsed["contact_name"] = first_c.get("name", "")
+                        if not parsed.get("contact_role"): parsed["contact_role"] = first_c.get("role", "")
+                        if not parsed.get("contact_phone"): parsed["contact_phone"] = first_c.get("phone", "")
+
                 parsed["raw_notes"] = text
                 return parsed
             else:
@@ -1062,21 +1111,42 @@ def check_should_auto_sync() -> bool:
 def create_supplier(supplier: SupplierCreate, background_tasks: BackgroundTasks, user: dict = Depends(require_admin)):
     conn = sqlite3.connect(DB_PATH)
     cursor = conn.cursor()
+
+    # 处理多联系人数据
+    contacts_str = supplier.contacts or "[]"
+    try:
+        c_list = json.loads(contacts_str) if isinstance(contacts_str, str) else contacts_str
+    except Exception:
+        c_list = []
+
+    first_name = supplier.contact_name or ""
+    first_phone = supplier.contact_phone or ""
+    first_role = supplier.contact_role or ""
+
+    if c_list and isinstance(c_list, list) and len(c_list) > 0:
+        first = c_list[0]
+        if isinstance(first, dict):
+            first_name = first.get("name") or first_name
+            first_role = first.get("role") or first_role
+            first_phone = first.get("phone") or first_phone
+    elif first_name or first_phone or first_role:
+        c_list = [{"name": first_name, "role": first_role, "phone": first_phone}]
+
     cursor.execute("""
     INSERT INTO suppliers (
         company_name, location, scale, main_products, advantage_products,
         price_terms, payment_terms, cooperation_intent, contact_name,
         contact_phone, contact_role, raw_notes, extra_notes, images,
-        latitude, longitude, status, plan_date, plan_notes, updated_at
-    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
+        latitude, longitude, status, plan_date, plan_notes, contacts, updated_at
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
     """, (
         supplier.company_name, supplier.location, supplier.scale,
         supplier.main_products, supplier.advantage_products,
         supplier.price_terms, supplier.payment_terms, supplier.cooperation_intent,
-        supplier.contact_name, supplier.contact_phone, supplier.contact_role,
+        first_name, first_phone, first_role,
         supplier.raw_notes, supplier.extra_notes, supplier.images or "[]",
         supplier.latitude, supplier.longitude, supplier.status or "visited",
-        supplier.plan_date, supplier.plan_notes
+        supplier.plan_date, supplier.plan_notes, json.dumps(c_list, ensure_ascii=False)
     ))
     new_id = cursor.lastrowid
     conn.commit()
@@ -1104,22 +1174,43 @@ def update_supplier(supplier_id: int, supplier: SupplierCreate, background_tasks
     final_plan_date = supplier.plan_date if (supplier.plan_date and supplier.plan_date.strip()) else old_plan_date
     final_plan_notes = supplier.plan_notes if (supplier.plan_notes and supplier.plan_notes.strip()) else old_plan_notes
 
+    # 处理多联系人数据
+    contacts_str = supplier.contacts or "[]"
+    try:
+        c_list = json.loads(contacts_str) if isinstance(contacts_str, str) else contacts_str
+    except Exception:
+        c_list = []
+
+    first_name = supplier.contact_name or ""
+    first_phone = supplier.contact_phone or ""
+    first_role = supplier.contact_role or ""
+
+    if c_list and isinstance(c_list, list) and len(c_list) > 0:
+        first = c_list[0]
+        if isinstance(first, dict):
+            first_name = first.get("name") or first_name
+            first_role = first.get("role") or first_role
+            first_phone = first.get("phone") or first_phone
+    elif first_name or first_phone or first_role:
+        c_list = [{"name": first_name, "role": first_role, "phone": first_phone}]
+
     cursor.execute("""
     UPDATE suppliers SET
         company_name = ?, location = ?, scale = ?, main_products = ?, advantage_products = ?,
         price_terms = ?, payment_terms = ?, cooperation_intent = ?, contact_name = ?,
         contact_phone = ?, contact_role = ?, raw_notes = ?, extra_notes = ?, images = ?,
-        latitude = ?, longitude = ?, status = ?, plan_date = ?, plan_notes = ?,
+        latitude = ?, longitude = ?, status = ?, plan_date = ?, plan_notes = ?, contacts = ?,
         updated_at = CURRENT_TIMESTAMP
     WHERE id = ?
     """, (
         supplier.company_name, supplier.location, supplier.scale,
         supplier.main_products, supplier.advantage_products,
         supplier.price_terms, supplier.payment_terms, supplier.cooperation_intent,
-        supplier.contact_name, supplier.contact_phone, supplier.contact_role,
+        first_name, first_phone, first_role,
         supplier.raw_notes, supplier.extra_notes, supplier.images or "[]",
         supplier.latitude, supplier.longitude, final_status,
-        final_plan_date, final_plan_notes, supplier_id
+        final_plan_date, final_plan_notes, json.dumps(c_list, ensure_ascii=False),
+        supplier_id
     ))
     conn.commit()
     conn.close()
@@ -1525,6 +1616,20 @@ def build_master_excel_bytes(ids: Optional[str] = None):
         except Exception:
             photo_count = 0
 
+        # 多联系人格式化
+        c_names = [r["contact_name"] or ""]
+        c_roles = [r["contact_role"] or ""]
+        c_phones = [r["contact_phone"] or ""]
+        try:
+            if "contacts" in r.keys() and r["contacts"] and r["contacts"] != "[]":
+                c_parsed = json.loads(r["contacts"])
+                if isinstance(c_parsed, list) and len(c_parsed) > 1:
+                    c_names = [c.get("name") or "-" for c in c_parsed]
+                    c_roles = [c.get("role") or "-" for c in c_parsed]
+                    c_phones = [c.get("phone") or "-" for c in c_parsed]
+        except Exception:
+            pass
+
         row_data = [
             idx,
             r["company_name"],
@@ -1535,9 +1640,9 @@ def build_master_excel_bytes(ids: Optional[str] = None):
             r["advantage_products"],
             r["price_terms"],
             r["payment_terms"],
-            r["contact_name"],
-            r["contact_role"],
-            r["contact_phone"],
+            "\n".join(c_names),
+            "\n".join(c_roles),
+            "\n".join(c_phones),
             r["extra_notes"] or r["raw_notes"],
             r["latest_comm"] or "暂无沟通记录",
             f"{photo_count} 张" if photo_count > 0 else "无",
@@ -1628,15 +1733,25 @@ def build_single_supplier_excel_bytes(r):
         bottom=Side(style='thin', color='D0D7DE')
     )
 
+    contacts_str = f"{r['contact_name'] or '未填'} ({r['contact_role'] or '未明确'})"
+    phones_str = r['contact_phone'] or '未填'
+    try:
+        if "contacts" in r.keys() and r["contacts"] and r["contacts"] != "[]":
+            c_parsed = json.loads(r["contacts"])
+            if isinstance(c_parsed, list) and len(c_parsed) > 1:
+                contacts_str = "\n".join([f"{c.get('name') or '-'} ({c.get('role') or '-'})" for c in c_parsed])
+                phones_str = "\n".join([c.get('phone') or '-' for c in c_parsed])
+    except Exception:
+        pass
+
     items = [
         ("公司规范全称", r["company_name"], "合作意向度", f"{r['cooperation_intent']} 意向"),
         ("地理详细位置", r["location"] or "未填", "GPS经纬度", f"{r['latitude'] or '-'}, {r['longitude'] or '-'}"),
         ("工厂规模产能", r["scale"] or "未明确", "最后更新时间", r["updated_at"]),
-        ("联系人姓名", r["contact_name"] or "未填", "职务/身份", r["contact_role"] or "未明确"),
-        ("联系电话/微信", r["contact_phone"] or "未填", "账期与结算方式", r["payment_terms"] or "未明确"),
-        ("主要经营产品", r["main_products"] or "-", "核心拳头主打", r["advantage_products"] or "-"),
-        ("各品类供货报价", r["price_terms"] or "待二次议价", "附件照片数量", f"{len(json.loads(r['images'] or '[]'))} 张实地照片"),
-        ("考察重要备忘\n(上下游/外采疑虑)", r["extra_notes"] or "无特殊备注", "原始拜访手记", r["raw_notes"] or "-")
+        ("关键联系人", contacts_str, "联系电话/微信", phones_str),
+        ("主要经营产品", r["main_products"] or "-", "账期与结算方式", r["payment_terms"] or "未明确"),
+        ("各品类供货报价", r["price_terms"] or "待二次议价", "核心拳头主打", r["advantage_products"] or "-"),
+        ("考察重要备忘\n(上下游/外采疑虑)", r["extra_notes"] or "无特殊备注", "附件照片数量", f"{len(json.loads(r['images'] or '[]'))} 张实地照片")
     ]
 
     curr_row = 2

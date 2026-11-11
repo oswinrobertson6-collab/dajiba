@@ -218,18 +218,23 @@
             <input type="text" id="field-payment-terms" placeholder="如：首单现结，后续月结30天" class="w-full p-2.5 text-sm bg-slate-50 border border-slate-200 rounded-lg focus:ring-1 focus:ring-emerald-500 outline-none text-slate-800 font-medium">
           </div>
 
-          <div class="grid grid-cols-3 gap-2">
-            <div>
-              <label class="block font-semibold text-slate-600 mb-1">👤 联系人</label>
-              <input type="text" id="field-contact-name" placeholder="姓名" class="w-full p-2.5 text-sm bg-slate-50 border border-slate-200 rounded-lg focus:ring-1 focus:ring-emerald-500 outline-none">
+          <!-- 兼容旧字段隐藏域 -->
+          <input type="hidden" id="field-contact-name">
+          <input type="hidden" id="field-contact-role">
+          <input type="hidden" id="field-contact-phone">
+
+          <!-- 动态多联系人列表 (如总经理、业务负责人独立成行) -->
+          <div class="space-y-2">
+            <div class="flex items-center justify-between">
+              <label class="block font-semibold text-slate-700 text-xs flex items-center">
+                <i data-lucide="users" class="w-3.5 h-3.5 mr-1 text-emerald-600"></i>关键联系人 (支持多人，如总经理/业务/厂长)
+              </label>
+              <button type="button" onclick="addContactRow('input')" class="text-xs text-emerald-700 font-semibold hover:text-emerald-800 flex items-center bg-emerald-50 hover:bg-emerald-100 px-2.5 py-1 rounded-lg border border-emerald-200 transition">
+                <i data-lucide="plus" class="w-3.5 h-3.5 mr-0.5"></i>添一行联系人
+              </button>
             </div>
-            <div>
-              <label class="block font-semibold text-slate-600 mb-1">💼 职务</label>
-              <input type="text" id="field-contact-role" placeholder="如厂长/总经理" class="w-full p-2.5 text-sm bg-slate-50 border border-slate-200 rounded-lg focus:ring-1 focus:ring-emerald-500 outline-none">
-            </div>
-            <div>
-              <label class="block font-semibold text-slate-600 mb-1">📞 电话/微信</label>
-              <input type="text" id="field-contact-phone" placeholder="手机号" class="w-full p-2.5 text-sm bg-slate-50 border border-slate-200 rounded-lg focus:ring-1 focus:ring-emerald-500 outline-none text-blue-600 font-medium">
+            <div id="input-contacts-container" class="space-y-2">
+              <!-- 动态渲染多行联系人 -->
             </div>
           </div>
 
@@ -838,18 +843,23 @@
           <label class="block font-semibold text-slate-600 mb-1">账期与结算</label>
           <input type="text" id="modal-payment" class="w-full p-2 bg-slate-50 border rounded-lg text-slate-800 font-medium">
         </div>
-        <div class="grid grid-cols-3 gap-2">
-          <div>
-            <label class="block font-semibold text-slate-600 mb-1">联系人</label>
-            <input type="text" id="modal-contact-name" class="w-full p-2 bg-slate-50 border rounded-lg">
+        <!-- 兼容旧字段隐藏域 -->
+        <input type="hidden" id="modal-contact-name">
+        <input type="hidden" id="modal-contact-role">
+        <input type="hidden" id="modal-contact-phone">
+
+        <!-- 动态多联系人列表 (如总经理、业务负责人独立成行) -->
+        <div class="space-y-2">
+          <div class="flex items-center justify-between">
+            <label class="block font-semibold text-slate-700 text-xs flex items-center">
+              <i data-lucide="users" class="w-3.5 h-3.5 mr-1 text-emerald-600"></i>关键联系人 (支持多人，如总经理/业务/厂长)
+            </label>
+            <button type="button" onclick="addContactRow('modal')" class="text-xs text-emerald-700 font-semibold hover:text-emerald-800 flex items-center bg-emerald-50 hover:bg-emerald-100 px-2.5 py-1 rounded-lg border border-emerald-200 transition">
+              <i data-lucide="plus" class="w-3.5 h-3.5 mr-0.5"></i>添一行联系人
+            </button>
           </div>
-          <div>
-            <label class="block font-semibold text-slate-600 mb-1">职务</label>
-            <input type="text" id="modal-contact-role" class="w-full p-2 bg-slate-50 border rounded-lg">
-          </div>
-          <div>
-            <label class="block font-semibold text-slate-600 mb-1">联系电话</label>
-            <input type="text" id="modal-contact-phone" class="w-full p-2 bg-slate-50 border rounded-lg text-blue-600">
+          <div id="modal-contacts-container" class="space-y-2">
+            <!-- 动态渲染多行联系人 -->
           </div>
         </div>
         <div>
@@ -2172,6 +2182,186 @@
       event.target.value = "";
     }
 
+    // ----------------- 多联系人动态管理 -----------------
+    function createContactRowHtml(prefix, role = '', name = '', phone = '', canDelete = true, index = 1) {
+      return `
+        <div class="contact-row bg-slate-50 border border-slate-200/90 rounded-xl p-2.5 space-y-1.5 transition">
+          <div class="flex items-center justify-between text-[11px]">
+            <span class="font-bold text-slate-600 flex items-center">
+              <span class="w-1.5 h-1.5 rounded-full bg-emerald-500 mr-1.5"></span>
+              <span class="contact-index-label">联系人 ${index}${index === 1 ? ' (首要)' : ''}</span>
+            </span>
+            ${canDelete ? `<button type="button" onclick="removeContactRow(this, '${prefix}')" class="text-xs text-rose-500 hover:text-rose-700 hover:underline">✕ 删除此人</button>` : `<span class="text-[10px] text-slate-400">首要对接人</span>`}
+          </div>
+          <div class="grid grid-cols-12 gap-1.5">
+            <div class="col-span-4">
+              <input type="text" class="contact-role w-full px-2 py-1.5 text-xs bg-white border border-slate-200 rounded-lg outline-none focus:border-emerald-500" placeholder="职务 (如总经理/销售)" value="${escapeHtml(role)}" oninput="onContactInputChange('${prefix}')">
+            </div>
+            <div class="col-span-3">
+              <input type="text" class="contact-name w-full px-2 py-1.5 text-xs bg-white border border-slate-200 rounded-lg outline-none focus:border-emerald-500 font-medium" placeholder="姓名" value="${escapeHtml(name)}" oninput="onContactInputChange('${prefix}')">
+            </div>
+            <div class="col-span-5">
+              <input type="text" class="contact-phone w-full px-2 py-1.5 text-xs bg-white border border-slate-200 rounded-lg outline-none focus:border-emerald-500 text-blue-600 font-medium font-mono" placeholder="电话/手机号" value="${escapeHtml(phone)}" oninput="onContactInputChange('${prefix}')">
+            </div>
+          </div>
+        </div>
+      `;
+    }
+
+    function onContactInputChange(prefix) {
+      syncFirstContactToLegacyFields(prefix);
+      if (prefix === 'input') {
+        scheduleSaveDraft();
+      }
+    }
+
+    function syncFirstContactToLegacyFields(prefix) {
+      const container = document.getElementById(`${prefix}-contacts-container`);
+      if (!container) return;
+      const firstRow = container.querySelector('.contact-row');
+      const nameEl = document.getElementById(prefix === 'input' ? 'field-contact-name' : 'modal-contact-name');
+      const roleEl = document.getElementById(prefix === 'input' ? 'field-contact-role' : 'modal-contact-role');
+      const phoneEl = document.getElementById(prefix === 'input' ? 'field-contact-phone' : 'modal-contact-phone');
+
+      if (firstRow) {
+        if (nameEl) nameEl.value = firstRow.querySelector('.contact-name')?.value.trim() || '';
+        if (roleEl) roleEl.value = firstRow.querySelector('.contact-role')?.value.trim() || '';
+        if (phoneEl) phoneEl.value = firstRow.querySelector('.contact-phone')?.value.trim() || '';
+      }
+    }
+
+    function addContactRow(prefix, role = '', name = '', phone = '') {
+      const container = document.getElementById(`${prefix}-contacts-container`);
+      if (!container) return;
+      const count = container.querySelectorAll('.contact-row').length + 1;
+      const div = document.createElement('div');
+      div.innerHTML = createContactRowHtml(prefix, role, name, phone, count > 1, count);
+      container.appendChild(div.firstElementChild);
+      updateContactRowIndexes(prefix);
+      syncFirstContactToLegacyFields(prefix);
+      if (prefix === 'input') scheduleSaveDraft();
+      if (typeof lucide !== 'undefined') lucide.createIcons();
+    }
+
+    function removeContactRow(btn, prefix) {
+      const row = btn.closest('.contact-row');
+      if (row) {
+        row.remove();
+        updateContactRowIndexes(prefix);
+        syncFirstContactToLegacyFields(prefix);
+        if (prefix === 'input') scheduleSaveDraft();
+      }
+    }
+
+    function updateContactRowIndexes(prefix) {
+      const container = document.getElementById(`${prefix}-contacts-container`);
+      if (!container) return;
+      const rows = container.querySelectorAll('.contact-row');
+      rows.forEach((row, idx) => {
+        const label = row.querySelector('.contact-index-label');
+        if (label) label.innerText = `联系人 ${idx + 1}${idx === 0 ? ' (首要)' : ''}`;
+      });
+    }
+
+    function getContactsList(prefix) {
+      const container = document.getElementById(`${prefix}-contacts-container`);
+      if (!container) return [];
+      const rows = container.querySelectorAll('.contact-row');
+      const list = [];
+      rows.forEach(r => {
+        const role = r.querySelector('.contact-role')?.value.trim() || '';
+        const name = r.querySelector('.contact-name')?.value.trim() || '';
+        const phone = r.querySelector('.contact-phone')?.value.trim() || '';
+        if (role || name || phone) {
+          list.push({ role, name, phone });
+        }
+      });
+      return list;
+    }
+
+    function setContactsList(prefix, contacts, fallbackItem = null) {
+      const container = document.getElementById(`${prefix}-contacts-container`);
+      if (!container) return;
+      container.innerHTML = '';
+      let list = [];
+      if (contacts) {
+        try {
+          list = typeof contacts === 'string' ? JSON.parse(contacts) : contacts;
+        } catch (e) {
+          list = [];
+        }
+      }
+      if (!Array.isArray(list) || list.length === 0) {
+        if (fallbackItem && (fallbackItem.contact_name || fallbackItem.contact_phone || fallbackItem.contact_role)) {
+          list = [{
+            role: fallbackItem.contact_role || '',
+            name: fallbackItem.contact_name || '',
+            phone: fallbackItem.contact_phone || ''
+          }];
+        }
+      }
+      if (list.length === 0) {
+        list = [{ role: '', name: '', phone: '' }];
+      }
+      list.forEach((c, idx) => {
+        const div = document.createElement('div');
+        div.innerHTML = createContactRowHtml(prefix, c.role || '', c.name || '', c.phone || '', idx > 0, idx + 1);
+        container.appendChild(div.firstElementChild);
+      });
+      updateContactRowIndexes(prefix);
+      syncFirstContactToLegacyFields(prefix);
+      if (typeof lucide !== 'undefined') lucide.createIcons();
+    }
+
+    function renderCardContacts(item) {
+      let list = [];
+      try {
+        if (item.contacts && item.contacts !== '[]') {
+          list = typeof item.contacts === 'string' ? JSON.parse(item.contacts) : item.contacts;
+        }
+      } catch (e) {}
+
+      if (!Array.isArray(list) || list.length === 0) {
+        if (item.contact_name || item.contact_phone || item.contact_role) {
+          list = [{
+            name: item.contact_name || '',
+            role: item.contact_role || '',
+            phone: item.contact_phone || ''
+          }];
+        }
+      }
+
+      list = list.filter(c => (c.name && c.name.trim()) || (c.phone && c.phone.trim()) || (c.role && c.role.trim()));
+
+      if (list.length === 0) {
+        return `
+          <div class="py-1.5 border-t border-slate-100 flex items-center text-xs text-slate-400">
+            <i data-lucide="user" class="w-3.5 h-3.5 mr-1 text-slate-300"></i>
+            <span>未填对接人</span>
+          </div>
+        `;
+      }
+
+      return `
+        <div class="space-y-1.5 py-1.5 border-t border-slate-100">
+          ${list.map(c => `
+            <div class="flex items-center justify-between text-xs bg-slate-50/80 hover:bg-slate-50 px-2.5 py-1.5 rounded-lg border border-slate-100/60 transition">
+              <div class="flex items-center space-x-1.5 truncate">
+                <span class="font-semibold text-slate-800 truncate">${escapeHtml(c.name || '联系人')}</span>
+                ${c.role ? `<span class="px-1.5 py-0.5 rounded text-[10px] bg-slate-200/70 text-slate-600 font-normal flex-shrink-0">${escapeHtml(c.role)}</span>` : ''}
+                ${c.phone ? `<span class="text-blue-600 font-mono text-[11px] font-medium ml-1">${escapeHtml(c.phone)}</span>` : ''}
+              </div>
+              ${c.phone ? `
+                <a href="tel:${escapeHtml(c.phone)}" onclick="event.stopPropagation()" class="px-2 py-0.5 rounded-md bg-emerald-100 hover:bg-emerald-200 text-emerald-800 text-[11px] font-medium flex items-center flex-shrink-0 ml-2 shadow-xs transition" title="直接拨打电话">
+                  <i data-lucide="phone" class="w-3 h-3 mr-0.5 text-emerald-600"></i>呼叫
+                </a>
+              ` : ''}
+            </div>
+          `).join('')}
+        </div>
+      `;
+    }
+
     const BROKEN_IMG_PLACEHOLDER = "data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='100' height='100' viewBox='0 0 100 100'><rect width='100' height='100' rx='10' fill='%23f8fafc' stroke='%23e2e8f0'/><text x='50' y='46' font-size='22' text-anchor='middle'>📷</text><text x='50' y='68' font-size='10' fill='%2394a3b8' font-family='sans-serif' text-anchor='middle'>待重传</text></svg>";
 
     function handleImgError(img) {
@@ -2475,6 +2665,7 @@
             extra_notes: getDraftFieldVal("field-extra-notes"),
             plan_date: getDraftFieldVal("field-plan-date")
           },
+          contacts: getContactsList("input"),
           updatedAt: Date.now()
         };
         localStorage.setItem(DRAFT_STORAGE_KEY, JSON.stringify(draft));
@@ -2491,9 +2682,15 @@
     function restoreDraftFromStorage() {
       try {
         const raw = localStorage.getItem(DRAFT_STORAGE_KEY);
-        if (!raw) return;
+        if (!raw) {
+          setContactsList("input", []);
+          return;
+        }
         const draft = JSON.parse(raw);
-        if (!draft) return;
+        if (!draft) {
+          setContactsList("input", []);
+          return;
+        }
 
         let hasData = false;
         if (draft.raw_notes && draft.raw_notes.trim()) {
@@ -2518,6 +2715,12 @@
               hasData = true;
             }
           }
+        }
+        if (draft.contacts && draft.contacts.length > 0) {
+          setContactsList("input", draft.contacts);
+          hasData = true;
+        } else {
+          setContactsList("input", [], draft.fields);
         }
         if (draft.isFormOpen && hasData) {
           const formBox = document.getElementById("form-container");
@@ -2596,6 +2799,7 @@
           document.getElementById("field-contact-name").value = res.data.contact_name || "";
           document.getElementById("field-contact-role").value = res.data.contact_role || "";
           document.getElementById("field-contact-phone").value = res.data.contact_phone || "";
+          setContactsList('input', res.data.contacts, res.data);
           document.getElementById("field-extra-notes").value = res.data.extra_notes || "";
           if (res.data.plan_date) {
             const planDateEl = document.getElementById("field-plan-date");
@@ -2624,6 +2828,7 @@
       document.getElementById("raw-input").value = "";
       currentPhotos = [];
       renderCurrentPhotos();
+      setContactsList("input", []);
       updateCharCount();
       setRecordTargetStatus("visited");
       const planDateEl = document.getElementById("field-plan-date");
@@ -2655,6 +2860,7 @@
 
       const targetStatus = currentRecordTargetStatus || "visited";
       const planDate = getVal("field-plan-date");
+      const contactsList = getContactsList('input');
 
       const payload = {
         company_name,
@@ -2665,9 +2871,10 @@
         advantage_products: getVal("field-advantage-products"),
         price_terms: getVal("field-price-terms"),
         payment_terms: getVal("field-payment-terms"),
-        contact_name: getVal("field-contact-name"),
-        contact_role: getVal("field-contact-role"),
-        contact_phone: getVal("field-contact-phone"),
+        contact_name: contactsList.length > 0 ? (contactsList[0].name || '') : getVal("field-contact-name"),
+        contact_role: contactsList.length > 0 ? (contactsList[0].role || '') : getVal("field-contact-role"),
+        contact_phone: contactsList.length > 0 ? (contactsList[0].phone || '') : getVal("field-contact-phone"),
+        contacts: JSON.stringify(contactsList),
         raw_notes: getVal("raw-input"),
         extra_notes: getVal("field-extra-notes"),
         images: JSON.stringify(currentPhotos || []),
@@ -2731,6 +2938,7 @@
       document.getElementById("field-contact-name").value = item.contact_name || "";
       document.getElementById("field-contact-role").value = item.contact_role || "";
       document.getElementById("field-contact-phone").value = item.contact_phone || "";
+      setContactsList('input', item.contacts, item);
       document.getElementById("field-extra-notes").value = item.plan_notes ? `【行前备忘】${item.plan_notes}` : "";
 
       const formBox = document.getElementById("form-container");
@@ -2817,36 +3025,30 @@
             </div>
           ` : ''}
 
-          <!-- 底部联系人与一键开拔录入 -->
-          <div class="border-t border-slate-100 pt-2.5 flex items-center justify-between text-xs">
-            <div class="flex items-center text-slate-700">
-              <i data-lucide="user" class="w-3.5 h-3.5 mr-1 text-slate-400"></i>
-              <span class="font-medium mr-1.5">${escapeHtml(item.contact_name || '未填对接人')}</span>
-              ${item.contact_phone ? `
-                <a href="tel:${escapeHtml(item.contact_phone)}" class="text-blue-600 hover:underline flex items-center font-medium">
-                  <i data-lucide="phone" class="w-3 h-3 mr-0.5"></i>${escapeHtml(item.contact_phone)}
-                </a>
-              ` : ''}
-            </div>
+          <!-- 联系人模块 (支持多位联系人，如总经理、业务负责人独立成行) -->
+          ${renderCardContacts(item)}
 
-            <div class="flex items-center space-x-1.5">
-              ${(currentUser && currentUser.role === 'admin') ? `
-                <button onclick="openAddCommForSupplier(${item.id}, event)" class="px-2.5 py-1.5 rounded-lg bg-amber-50 hover:bg-amber-100 text-amber-900 font-medium text-xs border border-amber-300 flex items-center shadow-xs" title="记录沟通情况">
-                  <i data-lucide="message-square" class="w-3 h-3 mr-1 text-amber-600"></i>记沟通
-                </button>
-                <button onclick="openEditPlanModal(${item.id})" class="px-2.5 py-1.5 rounded-lg bg-amber-50 hover:bg-amber-100 text-amber-900 font-medium text-xs border border-amber-300 flex items-center shadow-xs">
-                  <i data-lucide="edit-3" class="w-3 h-3 mr-1 text-amber-600"></i>编辑行程
-                </button>
-                <button onclick="deleteCurrentSupplierDirect(${item.id})" class="px-2 py-1.5 text-slate-400 hover:text-rose-600 text-xs">
-                  删除
-                </button>
-                <button onclick="startInspectFromPlan(${item.id})" class="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 active:bg-emerald-800 text-white font-medium rounded-xl text-xs flex items-center shadow-xs">
-                  <i data-lucide="pencil" class="w-3 h-3 mr-1"></i>现场考察录入
-                </button>
-              ` : `
-                <span class="text-[11px] text-slate-400 font-medium px-2 py-1 bg-slate-50 rounded-lg border">待考察行程 (只读)</span>
-              `}
-            </div>
+          <!-- 底部操作与一键开拔录入 -->
+          <div class="pt-2 flex items-center justify-end space-x-1.5 flex-wrap gap-y-1 text-xs">
+            ${(currentUser && currentUser.role === 'admin') ? `
+              <button onclick="openAddCommForSupplier(${item.id}, event)" class="px-2.5 py-1.5 rounded-lg bg-amber-50 hover:bg-amber-100 text-amber-900 font-medium text-xs border border-amber-300 flex items-center shadow-xs" title="记录沟通情况">
+                <i data-lucide="message-square" class="w-3 h-3 mr-1 text-amber-600"></i>记沟通
+              </button>
+              <button onclick="openEditPlanModal(${item.id})" class="px-2.5 py-1.5 rounded-lg bg-amber-50 hover:bg-amber-100 text-amber-900 font-medium text-xs border border-amber-300 flex items-center shadow-xs">
+                <i data-lucide="edit-3" class="w-3 h-3 mr-1 text-amber-600"></i>编辑行程
+              </button>
+              <button onclick="deleteCurrentSupplierDirect(${item.id})" class="px-2 py-1.5 text-slate-400 hover:text-rose-600 text-xs">
+                删除
+              </button>
+              <button onclick="startInspectFromPlan(${item.id})" class="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 active:bg-emerald-800 text-white font-medium rounded-xl text-xs flex items-center shadow-xs">
+                <i data-lucide="pencil" class="w-3 h-3 mr-1"></i>现场考察录入
+              </button>
+            ` : `
+              <button onclick="openDetailModal(${item.id})" class="px-2.5 py-1.5 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-600 text-xs">
+                查看详情
+              </button>
+            `}
+          </div>
           </div>
         </div>
       `).join("");
@@ -2934,45 +3136,36 @@
           <!-- 照片缩略图横排 (如果有照片) -->
           ${renderCardPhotos(item.images)}
 
-          <!-- 底部联系人与操作 -->
-          <div class="border-t border-slate-100 pt-2.5 flex items-center justify-between text-xs">
-            <div class="flex items-center text-slate-700">
-              <i data-lucide="user" class="w-3.5 h-3.5 mr-1 text-slate-400"></i>
-              <span class="font-medium mr-1.5">${escapeHtml(item.contact_name || '未填联系人')}</span>
-              <span class="text-slate-400 text-[11px]">${escapeHtml(item.contact_role || '')}</span>
-            </div>
+          <!-- 关键联系人模块 (支持总经理、业务负责人等多行展示与一键拨打) -->
+          ${renderCardContacts(item)}
 
-            <div class="flex items-center space-x-1.5 flex-wrap gap-y-1">
-              ${item.contact_phone ? `
-                <a href="tel:${escapeHtml(item.contact_phone)}" class="px-2 py-1 rounded-lg bg-emerald-50 hover:bg-emerald-100 text-emerald-700 font-medium flex items-center text-xs border border-emerald-200">
-                  <i data-lucide="phone-call" class="w-3 h-3 mr-1"></i>呼叫
-                </a>
-              ` : ''}
-              ${(currentUser && currentUser.role === 'admin') ? `
-                <button onclick="quickRevertToPlanned(${item.id}, '${escapeHtml(item.company_name)}')" class="px-2 py-1 rounded-lg bg-amber-50 hover:bg-amber-100 text-amber-800 text-xs flex items-center border border-amber-200" title="误操作？一键退回到待拜访行程">
-                  <i data-lucide="rotate-ccw" class="w-3 h-3 mr-0.5 text-amber-600"></i>退回待办
-                </button>
-              ` : ''}
-              ${(currentUser && currentUser.role === 'admin') ? `
-                <button onclick="openAddCommForSupplier(${item.id}, event)" class="px-2 py-1 rounded-lg bg-emerald-50 hover:bg-emerald-100 text-emerald-800 text-xs flex items-center border border-emerald-300 font-medium" title="记录与该厂的微信/电话沟通">
-                  <i data-lucide="message-square" class="w-3 h-3 mr-0.5 text-emerald-600"></i>记沟通
-                </button>
-                <button onclick="openFollowupModal(${item.id})" class="px-2 py-1 rounded-lg bg-emerald-50 hover:bg-emerald-100 text-emerald-800 text-xs flex items-center border border-emerald-300 font-medium" title="为该厂添加跟进待办">
-                  <i data-lucide="calendar-plus" class="w-3 h-3 mr-0.5 text-emerald-600"></i>+待办
-                </button>
-              ` : ''}
-              <a href="${getAuthUrl('/api/export/supplier/' + item.id)}" download class="px-2 py-1 rounded-lg bg-emerald-50 hover:bg-emerald-100 text-emerald-800 text-xs flex items-center border border-emerald-300 font-medium" title="导出包含文字和现场照片的独立尽调表格">
-                <i data-lucide="file-spreadsheet" class="w-3.5 h-3.5 mr-1 text-emerald-600"></i>图文表
-              </a>
-              ${(currentUser && currentUser.role === 'admin') ? `
-                <button onclick="syncSingleToJgy(${item.id})" class="px-2 py-1 rounded-lg bg-amber-50 hover:bg-amber-100 text-amber-800 text-xs flex items-center border border-amber-300 font-medium" title="一键同步该厂尽调表与原照至坚果云">
-                  <span class="mr-0.5 text-xs">🌰</span>坚果云
-                </button>
-              ` : ''}
-              <button onclick="openDetailModal(${item.id})" class="px-2 py-1 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-600 text-xs">
-                详情
+          <!-- 底部操作按钮栏 -->
+          <div class="pt-2 flex items-center justify-end space-x-1.5 flex-wrap gap-y-1 text-xs">
+            ${(currentUser && currentUser.role === 'admin') ? `
+              <button onclick="quickRevertToPlanned(${item.id}, '${escapeHtml(item.company_name)}')" class="px-2 py-1 rounded-lg bg-amber-50 hover:bg-amber-100 text-amber-800 text-xs flex items-center border border-amber-200" title="误操作？一键退回到待拜访行程">
+                <i data-lucide="rotate-ccw" class="w-3 h-3 mr-0.5 text-amber-600"></i>退回待办
               </button>
-            </div>
+            ` : ''}
+            ${(currentUser && currentUser.role === 'admin') ? `
+              <button onclick="openAddCommForSupplier(${item.id}, event)" class="px-2 py-1 rounded-lg bg-emerald-50 hover:bg-emerald-100 text-emerald-800 text-xs flex items-center border border-emerald-300 font-medium" title="记录与该厂的微信/电话沟通">
+                <i data-lucide="message-square" class="w-3 h-3 mr-0.5 text-emerald-600"></i>记沟通
+              </button>
+              <button onclick="openFollowupModal(${item.id})" class="px-2 py-1 rounded-lg bg-emerald-50 hover:bg-emerald-100 text-emerald-800 text-xs flex items-center border border-emerald-300 font-medium" title="为该厂添加跟进待办">
+                <i data-lucide="calendar-plus" class="w-3 h-3 mr-0.5 text-emerald-600"></i>+待办
+              </button>
+            ` : ''}
+            <a href="${getAuthUrl('/api/export/supplier/' + item.id)}" download class="px-2 py-1 rounded-lg bg-emerald-50 hover:bg-emerald-100 text-emerald-800 text-xs flex items-center border border-emerald-300 font-medium" title="导出包含文字和现场照片的独立尽调表格">
+              <i data-lucide="file-spreadsheet" class="w-3.5 h-3.5 mr-1 text-emerald-600"></i>图文表
+            </a>
+            ${(currentUser && currentUser.role === 'admin') ? `
+              <button onclick="syncSingleToJgy(${item.id})" class="px-2 py-1 rounded-lg bg-amber-50 hover:bg-amber-100 text-amber-800 text-xs flex items-center border border-amber-300 font-medium" title="一键同步该厂尽调表与原照至坚果云">
+                <span class="mr-0.5 text-xs">🌰</span>坚果云
+              </button>
+            ` : ''}
+            <button onclick="openDetailModal(${item.id})" class="px-2.5 py-1 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-700 font-medium text-xs">
+              详情
+            </button>
+          </div>
           </div>
         </div>
       `).join("");
@@ -3180,6 +3373,7 @@
           document.getElementById("modal-contact-name").value = d.contact_name || "";
           document.getElementById("modal-contact-role").value = d.contact_role || "";
           document.getElementById("modal-contact-phone").value = d.contact_phone || "";
+          setContactsList('modal', d.contacts, d);
           document.getElementById("modal-extra-notes").value = d.extra_notes || "";
           
           const expBtn = document.getElementById("modal-export-btn");
@@ -3306,6 +3500,7 @@
         return;
       }
 
+      const modalContacts = getContactsList('modal');
       const payload = {
         company_name,
         location: document.getElementById("modal-location").value.trim(),
@@ -3315,9 +3510,10 @@
         advantage_products: document.getElementById("modal-advantage-products").value.trim(),
         price_terms: document.getElementById("modal-price").value.trim(),
         payment_terms: document.getElementById("modal-payment").value.trim(),
-        contact_name: document.getElementById("modal-contact-name").value.trim(),
-        contact_role: document.getElementById("modal-contact-role").value.trim(),
-        contact_phone: document.getElementById("modal-contact-phone").value.trim(),
+        contact_name: modalContacts.length > 0 ? (modalContacts[0].name || '') : document.getElementById("modal-contact-name").value.trim(),
+        contact_role: modalContacts.length > 0 ? (modalContacts[0].role || '') : document.getElementById("modal-contact-role").value.trim(),
+        contact_phone: modalContacts.length > 0 ? (modalContacts[0].phone || '') : document.getElementById("modal-contact-phone").value.trim(),
+        contacts: JSON.stringify(modalContacts),
         raw_notes: document.getElementById("modal-raw-notes").innerText,
         extra_notes: document.getElementById("modal-extra-notes").value.trim(),
         images: JSON.stringify(modalPhotos),
