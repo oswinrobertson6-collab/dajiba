@@ -13,7 +13,8 @@ import secrets
 from typing import Optional, List, Dict, Any
 from fastapi import FastAPI, HTTPException, Response, UploadFile, File, BackgroundTasks, Depends, Header, Query
 from fastapi.staticfiles import StaticFiles
-from fastapi.responses import HTMLResponse, StreamingResponse
+from fastapi.responses import HTMLResponse, StreamingResponse, FileResponse
+from PIL import Image, ImageOps
 from pydantic import BaseModel
 import httpx
 import openpyxl
@@ -109,6 +110,46 @@ def push_db_to_github():
                 print(f"⚠️ 同步到 GitHub 失败，状态码: {put_resp.status_code}, 内容: {put_resp.text}")
     except Exception as e:
         print(f"⚠️ 同步 suppliers.db 到 GitHub 异常: {e}")
+    return False
+
+def push_file_to_github(file_path: str, repo_path: str):
+    """将上传的图片/附件后台自动同步持久化到 GitHub 仓库，防云端容器休眠重启后丢失"""
+    if not GITHUB_TOKEN or not GITHUB_REPO:
+        return False
+    try:
+        if not os.path.exists(file_path):
+            return False
+        with open(file_path, "rb") as f:
+            content_bytes = f.read()
+        content_b64 = base64.b64encode(content_bytes).decode("utf-8")
+
+        url = f"https://api.github.com/repos/{GITHUB_REPO}/contents/{repo_path}"
+        headers = {
+            "Authorization": f"token {GITHUB_TOKEN}",
+            "Accept": "application/vnd.github.v3+json",
+            "User-Agent": "FigSupplierApp"
+        }
+        with httpx.Client(timeout=35.0) as client:
+            get_resp = client.get(url, headers=headers)
+            current_sha = None
+            if get_resp.status_code == 200:
+                current_sha = get_resp.json().get("sha")
+
+            payload = {
+                "message": f"Auto-sync file {repo_path} [skip ci]",
+                "content": content_b64
+            }
+            if current_sha:
+                payload["sha"] = current_sha
+
+            put_resp = client.put(url, headers=headers, json=payload)
+            if put_resp.status_code in [200, 201]:
+                print(f"✅ 成功将 {repo_path} 自动同步持久化到 GitHub 云端！")
+                return True
+            else:
+                print(f"⚠️ 同步 {repo_path} 到 GitHub 失败: {put_resp.status_code}")
+    except Exception as e:
+        print(f"⚠️ 同步 {repo_path} 到 GitHub 异常: {e}")
     return False
 
 # ----------------- 数据库初始化 -----------------
@@ -961,18 +1002,42 @@ async def reverse_geocode(lat: float, lng: float, user: dict = Depends(require_a
         "lng": lng
     }
 @app.post("/api/upload")
-async def upload_image(file: UploadFile = File(...), user: dict = Depends(require_admin)):
-    # 限制后缀
-    allowed_exts = [".jpg", ".jpeg", ".png", ".webp", ".gif", ".heic"]
-    ext = os.path.splitext(file.filename)[1].lower() if file.filename else ".jpg"
-    if ext not in allowed_exts:
-        ext = ".jpg"
+async def upload_image(background_tasks: BackgroundTasks, file: UploadFile = File(...), user: dict = Depends(require_admin)):
+    # 限制后缀（支持各类主流照片与 PDF 检验报告）
+    allowed_exts = [".jpg", ".jpeg", ".png", ".webp", ".gif", ".heic", ".pdf"]
+    raw_ext = os.path.splitext(file.filename)[1].lower() if file.filename else ".jpg"
+    ext = raw_ext if raw_ext in allowed_exts else ".jpg"
     
     unique_name = f"{datetime.datetime.now().strftime('%Y%m%d_%H%M%S')}_{uuid.uuid4().hex[:8]}{ext}"
     target_path = os.path.join(UPLOAD_DIR, unique_name)
+    os.makedirs(UPLOAD_DIR, exist_ok=True)
 
-    with open(target_path, "wb") as buffer:
-        shutil.copyfileobj(file.file, buffer)
+    content = await file.read()
+
+    # 如果是常见图片格式，进行轻量压缩与方向校正，提升手机浏览速度并节省空间
+    if ext in [".jpg", ".jpeg", ".png", ".webp"]:
+        try:
+            img = Image.open(BytesIO(content))
+            try:
+                img = ImageOps.exif_transpose(img)
+            except Exception:
+                pass
+            if img.mode in ("RGBA", "P"):
+                img = img.convert("RGB")
+            max_size = 1600
+            if max(img.size) > max_size:
+                img.thumbnail((max_size, max_size), Image.Resampling.LANCZOS)
+            img.save(target_path, "JPEG", quality=82, optimize=True)
+        except Exception as e:
+            print(f"⚠️ 图片压缩保存异常，转存原图: {e}")
+            with open(target_path, "wb") as buffer:
+                buffer.write(content)
+    else:
+        with open(target_path, "wb") as buffer:
+            buffer.write(content)
+
+    # 后台自动同步至 GitHub 仓库，保障容器重启/重新部署后永不丢失
+    background_tasks.add_task(push_file_to_github, target_path, f"static/uploads/{unique_name}")
 
     return {
         "status": "ok",
@@ -2042,6 +2107,34 @@ def export_photos_zip(supplier_id: Optional[int] = None, user: dict = Depends(re
         media_type="application/zip",
         headers={"Content-Disposition": f"attachment; filename*=UTF-8''{encoded_zn}"}
     )
+
+# 智能附件/图片分发：优先取本地，若本地因容器重启缺失则自动从 GitHub 仓库拉取并恢复
+@app.get("/static/uploads/{filename}")
+async def get_uploaded_file(filename: str):
+    target_path = os.path.join(UPLOAD_DIR, filename)
+    if os.path.exists(target_path):
+        return FileResponse(target_path)
+    
+    # 容器休眠重启后自动从 GitHub 云端仓库拉回
+    if GITHUB_TOKEN and GITHUB_REPO:
+        try:
+            url = f"https://api.github.com/repos/{GITHUB_REPO}/contents/static/uploads/{filename}"
+            headers = {
+                "Authorization": f"token {GITHUB_TOKEN}",
+                "Accept": "application/vnd.github.v3.raw",
+                "User-Agent": "FigSupplierApp"
+            }
+            async with httpx.AsyncClient(timeout=20.0) as client:
+                resp = await client.get(url, headers=headers)
+                if resp.status_code == 200:
+                    os.makedirs(UPLOAD_DIR, exist_ok=True)
+                    with open(target_path, "wb") as f:
+                        f.write(resp.content)
+                    return FileResponse(target_path)
+        except Exception as e:
+            print(f"⚠️ 动态从 GitHub 拉取图片失败: {e}")
+
+    raise HTTPException(status_code=404, detail="File not found")
 
 # 挂载静态文件目录
 app.mount("/static", StaticFiles(directory=STATIC_DIR), name="static")

@@ -2172,6 +2172,15 @@
       event.target.value = "";
     }
 
+    const BROKEN_IMG_PLACEHOLDER = "data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='100' height='100' viewBox='0 0 100 100'><rect width='100' height='100' rx='10' fill='%23f8fafc' stroke='%23e2e8f0'/><text x='50' y='46' font-size='22' text-anchor='middle'>📷</text><text x='50' y='68' font-size='10' fill='%2394a3b8' font-family='sans-serif' text-anchor='middle'>待重传</text></svg>";
+
+    function handleImgError(img) {
+      if (!img) return;
+      img.onerror = null;
+      img.src = BROKEN_IMG_PLACEHOLDER;
+      img.title = "图片未找到，建议点击详情重新上传";
+    }
+
     // 渲染录入页照片预览
     function renderCurrentPhotos() {
       const container = document.getElementById("photo-preview-grid");
@@ -2180,7 +2189,7 @@
 
       let html = currentPhotos.map((url, idx) => `
         <div class="relative group rounded-xl overflow-hidden border border-slate-200 h-20 bg-slate-100">
-          <img src="${url}" class="w-full h-full object-cover cursor-pointer" onclick="openLightbox('${url}')">
+          <img src="${url}" onerror="handleImgError(this)" class="w-full h-full object-cover cursor-pointer" onclick="openLightbox('${url}')">
           <button onclick="removeCurrentPhoto(${idx})" class="absolute top-1 right-1 w-5 h-5 rounded-full bg-black/60 text-white flex items-center justify-center text-xs">✕</button>
         </div>
       `).join("");
@@ -2212,7 +2221,7 @@
 
       let html = modalPhotos.map((url, idx) => `
         <div class="relative group rounded-xl overflow-hidden border border-slate-200 h-20 bg-slate-100">
-          <img src="${url}" class="w-full h-full object-cover cursor-pointer" onclick="openLightbox('${url}')">
+          <img src="${url}" onerror="handleImgError(this)" class="w-full h-full object-cover cursor-pointer" onclick="openLightbox('${url}')">
           ${!isViewer ? `<button onclick="removeModalPhoto(${idx})" class="absolute top-1 right-1 w-5 h-5 rounded-full bg-black/60 text-white flex items-center justify-center text-xs">✕</button>` : ''}
         </div>
       `).join("");
@@ -3006,7 +3015,7 @@
         return `
           <div class="flex items-center space-x-1.5 overflow-x-auto no-scrollbar py-1">
             ${imgs.map(url => `
-              <img src="${url}" class="w-14 h-14 object-cover rounded-lg border border-slate-200 flex-shrink-0 cursor-pointer hover:opacity-90" onclick="event.stopPropagation(); openLightbox('${url}')">
+              <img src="${url}" onerror="handleImgError(this)" class="w-14 h-14 object-cover rounded-lg border border-slate-200 flex-shrink-0 cursor-pointer hover:opacity-90" onclick="event.stopPropagation(); openLightbox('${url}')">
             `).join('')}
             <span class="text-[10px] text-slate-400 pl-1 flex-shrink-0">共 ${imgs.length} 张照片</span>
           </div>
