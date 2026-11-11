@@ -81,6 +81,18 @@
     <!-- ================= 页面 1: 智能碎片录入 ================= -->
     <section id="tab-record" class="tab-page space-y-4">
       
+      <!-- 录入模式切换 (已考察 vs 待拜访) -->
+      <div class="bg-slate-200/80 p-1 rounded-2xl flex items-center text-xs font-semibold shadow-inner">
+        <button type="button" onclick="setRecordTargetStatus('visited')" id="top-record-target-visited" class="flex-1 py-2.5 rounded-xl bg-white text-emerald-800 shadow-xs flex items-center justify-center space-x-1.5 transition font-bold">
+          <i data-lucide="check-circle" class="w-4 h-4 text-emerald-600"></i>
+          <span>已考察档案 (正式库)</span>
+        </button>
+        <button type="button" onclick="setRecordTargetStatus('planned')" id="top-record-target-planned" class="flex-1 py-2.5 rounded-xl text-slate-600 hover:text-slate-900 flex items-center justify-center space-x-1.5 transition">
+          <i data-lucide="calendar" class="w-4 h-4 text-amber-500"></i>
+          <span>待拜访行程 (提前规划)</span>
+        </button>
+      </div>
+
       <!-- 草稿箱自动恢复提示条 (初始隐藏) -->
       <div id="draft-alert-banner" class="hidden bg-amber-50 border border-amber-200 rounded-xl p-2.5 text-xs text-amber-900 flex items-center justify-between animate-in fade-in">
         <div class="flex items-center space-x-1.5">
@@ -93,9 +105,9 @@
       </div>
 
       <!-- 提示条 -->
-      <div class="bg-emerald-50 border border-emerald-200 rounded-xl p-3 text-xs text-emerald-900 flex items-start space-x-2">
+      <div id="record-tip-box" class="bg-emerald-50 border border-emerald-200 rounded-xl p-3 text-xs text-emerald-900 flex items-start space-x-2">
         <i data-lucide="sparkles" class="w-4 h-4 text-emerald-600 flex-shrink-0 mt-0.5"></i>
-        <div>
+        <div id="record-tip-text">
           <span class="font-semibold">使用小窍门：</span>把拜访工厂后记在备忘录、微信聊天里的随笔话直接粘进来，点“智能提取”，系统自动梳理并归档！
         </div>
       </div>
@@ -103,7 +115,7 @@
       <!-- 输入卡片 -->
       <div class="bg-white rounded-2xl p-4 shadow-sm border border-slate-200 space-y-3">
         <div class="flex items-center justify-between">
-          <label class="text-xs font-bold text-slate-700 flex items-center">
+          <label id="raw-input-label" class="text-xs font-bold text-slate-700 flex items-center">
             <i data-lucide="file-text" class="w-4 h-4 mr-1 text-slate-500"></i>
             粘贴碎片记录 / 随手备忘
           </label>
@@ -119,15 +131,15 @@
         ></textarea>
 
         <!-- 快捷示例胶囊按钮 -->
-        <div class="flex items-center space-x-2 overflow-x-auto no-scrollbar py-1">
+        <div id="sample-buttons-container" class="flex items-center space-x-2 overflow-x-auto no-scrollbar py-1">
           <span class="text-xs text-slate-400 flex-shrink-0">填入示例：</span>
-          <button onclick="fillSample(1)" class="text-xs px-2.5 py-1 bg-slate-100 hover:bg-slate-200 text-slate-600 rounded-lg flex-shrink-0 transition">
+          <button type="button" onclick="fillSample(1)" class="text-xs px-2.5 py-1 bg-slate-100 hover:bg-slate-200 text-slate-600 rounded-lg flex-shrink-0 transition">
             威海鲜果/果脯厂
           </button>
-          <button onclick="fillSample(2)" class="text-xs px-2.5 py-1 bg-slate-100 hover:bg-slate-200 text-slate-600 rounded-lg flex-shrink-0 transition">
+          <button type="button" onclick="fillSample(2)" class="text-xs px-2.5 py-1 bg-slate-100 hover:bg-slate-200 text-slate-600 rounded-lg flex-shrink-0 transition">
             四川冻干/原浆厂
           </button>
-          <button onclick="fillSample(3)" class="text-xs px-2.5 py-1 bg-slate-100 hover:bg-slate-200 text-slate-600 rounded-lg flex-shrink-0 transition">
+          <button type="button" onclick="fillSample(3)" class="text-xs px-2.5 py-1 bg-slate-100 hover:bg-slate-200 text-slate-600 rounded-lg flex-shrink-0 transition">
             新疆阿图什干果
           </button>
         </div>
@@ -139,7 +151,7 @@
           class="w-full py-3 bg-emerald-600 hover:bg-emerald-700 active:bg-emerald-800 text-white font-medium rounded-xl flex items-center justify-center space-x-2 shadow-sm shadow-emerald-200 transition"
         >
           <i data-lucide="wand-2" class="w-4 h-4"></i>
-          <span id="btn-extract-text">AI 智能提取结构化信息</span>
+          <span id="btn-extract-text">AI 智能提取已考察档案</span>
         </button>
       </div>
 
@@ -318,9 +330,19 @@
               class="w-full pl-9 pr-3 py-2 text-sm bg-slate-50 border border-slate-200 rounded-xl focus:ring-1 focus:ring-emerald-500 outline-none"
             >
           </div>
-          <!-- 待拜访模式下出现的新增计划按钮 -->
-          <button id="btn-add-plan" onclick="openPlanModal()" class="px-3 py-2 bg-amber-500 hover:bg-amber-600 text-white rounded-xl text-xs font-medium flex items-center flex-shrink-0 shadow-sm hidden">
-            <i data-lucide="plus" class="w-3.5 h-3.5 mr-1"></i>加行程
+          <!-- 已考察模式下出现的碎片录入按钮 -->
+          <button id="btn-add-visited-fragment" onclick="startFragmentEntry('visited')" class="px-3 py-2 bg-emerald-600 hover:bg-emerald-700 active:bg-emerald-800 text-white rounded-xl text-xs font-semibold flex items-center flex-shrink-0 shadow-sm transition space-x-1">
+            <i data-lucide="wand-2" class="w-3.5 h-3.5"></i>
+            <span>碎片录入</span>
+          </button>
+          <!-- 待拜访模式下出现的碎片录入按钮 -->
+          <button id="btn-add-planned-fragment" onclick="startFragmentEntry('planned')" class="px-3 py-2 bg-amber-500 hover:bg-amber-600 active:bg-amber-700 text-white rounded-xl text-xs font-semibold flex items-center flex-shrink-0 shadow-sm transition space-x-1 hidden">
+            <i data-lucide="wand-2" class="w-3.5 h-3.5"></i>
+            <span>碎片录入</span>
+          </button>
+          <!-- 待拜访模式下出现的手动加行程按钮 -->
+          <button id="btn-add-plan" onclick="openPlanModal()" class="px-2.5 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 border border-slate-200 rounded-xl text-xs font-medium flex items-center flex-shrink-0 shadow-xs transition hidden">
+            <i data-lucide="plus" class="w-3.5 h-3.5 mr-0.5"></i>手动
           </button>
         </div>
 
@@ -885,6 +907,22 @@
       </div>
 
       <input type="hidden" id="plan-id">
+
+      <!-- ⚡ 碎片一键识别辅助区 -->
+      <div class="bg-amber-50/80 border border-amber-200 rounded-2xl p-3 space-y-2">
+        <div class="flex items-center justify-between">
+          <span class="text-xs font-bold text-amber-900 flex items-center">
+            <i data-lucide="sparkles" class="w-3.5 h-3.5 mr-1 text-amber-600"></i>
+            碎片文本一键提取
+          </span>
+          <span class="text-[10px] text-amber-700">粘贴微信消息/随笔</span>
+        </div>
+        <textarea id="plan-fragment-input" rows="2" placeholder="粘贴零碎文字，如：下周四去威海荣成拜访润丰果业，张总 13963158821，预约上午10点看波姬红烘干线..." class="w-full text-xs p-2.5 bg-white border border-amber-200 rounded-xl outline-none focus:ring-1 focus:ring-amber-500 text-slate-800 placeholder:text-slate-400"></textarea>
+        <button type="button" id="btn-plan-quick-extract" onclick="handlePlanQuickExtract()" class="w-full py-2 bg-amber-500 hover:bg-amber-600 active:bg-amber-700 text-white rounded-xl text-xs font-semibold flex items-center justify-center space-x-1.5 transition shadow-xs">
+          <i data-lucide="wand-2" class="w-3.5 h-3.5"></i>
+          <span id="btn-plan-extract-text">AI 智能提取并填入下方表单</span>
+        </button>
+      </div>
 
       <div class="space-y-2.5 text-xs">
         <div>
@@ -1680,6 +1718,8 @@
       document.getElementById("plan-contact-name").value = "";
       document.getElementById("plan-contact-phone").value = "";
       document.getElementById("plan-notes").value = "";
+      const fragInput = document.getElementById("plan-fragment-input");
+      if (fragInput) fragInput.value = "";
       document.getElementById("plan-modal").classList.remove("hidden");
     }
 
@@ -1696,11 +1736,66 @@
       document.getElementById("plan-contact-name").value = item.contact_name || "";
       document.getElementById("plan-contact-phone").value = item.contact_phone || "";
       document.getElementById("plan-notes").value = item.plan_notes || item.extra_notes || "";
+      const fragInput = document.getElementById("plan-fragment-input");
+      if (fragInput) fragInput.value = "";
       document.getElementById("plan-modal").classList.remove("hidden");
     }
 
     function closePlanModal() {
       document.getElementById("plan-modal").classList.add("hidden");
+    }
+
+    // 待拜访弹窗内快捷 AI 提取填表
+    async function handlePlanQuickExtract() {
+      const text = (document.getElementById("plan-fragment-input").value || "").trim();
+      if (!text) {
+        showToast("请先粘贴或输入待拜访碎片备忘");
+        const el = document.getElementById("plan-fragment-input");
+        if (el) el.focus();
+        return;
+      }
+
+      const btn = document.getElementById("btn-plan-quick-extract");
+      const btnText = document.getElementById("btn-plan-extract-text");
+      const origText = btnText ? btnText.innerText : "AI 智能提取并填入下方表单";
+      btn.disabled = true;
+      if (btnText) btnText.innerText = "智能分析提取中...";
+
+      try {
+        const resp = await fetch("/api/extract", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ text })
+        });
+        const res = await resp.json();
+        if (res.status === "ok") {
+          const d = res.data;
+          if (d.company_name) document.getElementById("plan-company-name").value = d.company_name;
+          if (d.location) document.getElementById("plan-location").value = d.location;
+          if (d.contact_name) document.getElementById("plan-contact-name").value = d.contact_name;
+          if (d.contact_phone) document.getElementById("plan-contact-phone").value = d.contact_phone;
+          if (d.plan_date) document.getElementById("plan-date").value = d.plan_date;
+          
+          const notesParts = [];
+          if (d.contact_role) notesParts.push(`职务: ${d.contact_role}`);
+          if (d.main_products) notesParts.push(`主营: ${d.main_products}`);
+          if (d.advantage_products) notesParts.push(`核心品: ${d.advantage_products}`);
+          if (d.price_terms) notesParts.push(`参考报价: ${d.price_terms}`);
+          if (d.extra_notes) notesParts.push(d.extra_notes);
+          if (notesParts.length > 0) {
+            document.getElementById("plan-notes").value = notesParts.join("；");
+          }
+          showToast("✨ 碎片提取成功！已自动填充待拜访表单，请核对保存");
+        } else {
+          showToast("提取失败：" + (res.detail || "请检查内容"));
+        }
+      } catch (err) {
+        console.error(err);
+        showToast("提取网络异常");
+      } finally {
+        btn.disabled = false;
+        if (btnText) btnText.innerText = origText;
+      }
     }
 
     // 保存待拜访行程 (支持新增与修改，保持 status=planned 不变)
@@ -1758,23 +1853,27 @@
       currentListStatus = status;
       const btnVisited = document.getElementById("btn-status-visited");
       const btnPlanned = document.getElementById("btn-status-planned");
+      const btnAddVisited = document.getElementById("btn-add-visited-fragment");
+      const btnAddPlanned = document.getElementById("btn-add-planned-fragment");
       const addPlanBtn = document.getElementById("btn-add-plan");
       const filterBox = document.getElementById("intent-filter-container");
+
+      const isAdmin = currentUser && currentUser.role === 'admin';
 
       if (status === "visited") {
         btnVisited.className = "flex-1 py-2 rounded-xl bg-white text-emerald-800 shadow-xs flex items-center justify-center transition font-bold";
         btnPlanned.className = "flex-1 py-2 rounded-xl text-slate-600 hover:text-slate-900 flex items-center justify-center transition";
-        addPlanBtn.classList.add("hidden");
-        filterBox.classList.remove("hidden");
+        if (btnAddVisited) btnAddVisited.classList.toggle("hidden", !isAdmin);
+        if (btnAddPlanned) btnAddPlanned.classList.add("hidden");
+        if (addPlanBtn) addPlanBtn.classList.add("hidden");
+        if (filterBox) filterBox.classList.remove("hidden");
       } else {
         btnPlanned.className = "flex-1 py-2 rounded-xl bg-white text-amber-900 shadow-xs flex items-center justify-center transition font-bold";
         btnVisited.className = "flex-1 py-2 rounded-xl text-slate-600 hover:text-slate-900 flex items-center justify-center transition";
-        if (currentUser && currentUser.role === 'admin') {
-          addPlanBtn.classList.remove("hidden");
-        } else {
-          addPlanBtn.classList.add("hidden");
-        }
-        filterBox.classList.add("hidden");
+        if (btnAddVisited) btnAddVisited.classList.add("hidden");
+        if (btnAddPlanned) btnAddPlanned.classList.toggle("hidden", !isAdmin);
+        if (addPlanBtn) addPlanBtn.classList.toggle("hidden", !isAdmin);
+        if (filterBox) filterBox.classList.add("hidden");
       }
 
       loadSuppliers(document.getElementById("search-input").value);
@@ -2008,17 +2107,73 @@
       document.getElementById("char-count").innerText = `${val.length} 字`;
     }
 
-    // 快速填充实战无花果示例
-    const SAMPLES = {
+    // 快速填充实战无花果示例 (区分已考察 vs 待拜访)
+    const SAMPLES_VISITED = {
       1: "今天上午去了威海荣成紫果无花果农业专业合作社，对接的李建国李总，电话13863128910。老李人很实在，他们在荣成有自有种植基地1200亩，主要是波姬红品种，日加工鲜果15吨左右。主营波姬红鲜果、无花果干果脯，还有速冻果块。最拿手的是高糖度特级鲜果和纯天然无添加果脯。特级鲜果报价18元/斤，二级果脯32元/公斤。账期方面说首单得现结，后面熟了可以月结30天。合作意向很高，有冷链车直发各大仓。",
       2: "考察了四川内江威远金果源生物科技，在威远经开区，占地50多亩。有2条大型真空冻干生产线，年产能800吨。主要做无花果冻干片、冻干全果、无花果浓缩原浆。他们的冻干整果形态极佳，原浆纯度很高，很多新茶饮和烘焙品牌都找他们代工。报价：冻干整果85元/kg，原浆24元/kg。付款要求30%定金，发货前结清。接待人是销售总监张雪梅18980231566，研发能力很扎实，意向强烈。",
       3: "新疆阿图什绿洲果品加工厂，找阿不都热依木厂长13999451122。新疆老牌工厂，年加工2000吨阿图什早黄果，主要做传统挂树黄干果、无花果茶、果酱。黄干果特选45元/公斤，品质极甜。要求现款现货提货付款。整体属于原料供应型，包装偏传统，意向中等。"
     };
 
+    const SAMPLES_PLANNED = {
+      1: "预定明天上午10点去威海文登葛家镇，拜访威海润丰无花果果业合作社，联系人张总 13963158821。老朋友引荐，计划去考察他们新上的热风烘干房和波姬红果脯包装车间，顺便带样品对比洽谈供货价格。",
+      2: "计划下周三下午前往四川内江威远县严陵镇，拜访远达绿色无花果开发有限公司，对接王经理 18782136655。主要考察冻干整果与无花果浓缩汁代工生产线，了解他们给知名茶饮品牌的供货账期与打样流程。",
+      3: "后天拜访烟台福山的一家无花果深加工基地，厂长孙卫东 13589802211。朋友推荐他们家做的无花果茶和烘干原果片品质不错，过去面谈批量采购报价与首单付款要求。"
+    };
+
+    function renderSampleButtons(targetStatus) {
+      const box = document.getElementById("sample-buttons-container");
+      if (!box) return;
+      if (targetStatus === "planned") {
+        box.innerHTML = `
+          <span class="text-xs text-slate-400 flex-shrink-0">填入示例：</span>
+          <button type="button" onclick="fillSample(1)" class="text-xs px-2.5 py-1 bg-amber-50 hover:bg-amber-100 text-amber-800 rounded-lg flex-shrink-0 transition border border-amber-200">
+            威海烘干房预约
+          </button>
+          <button type="button" onclick="fillSample(2)" class="text-xs px-2.5 py-1 bg-amber-50 hover:bg-amber-100 text-amber-800 rounded-lg flex-shrink-0 transition border border-amber-200">
+            四川冻干线规划
+          </button>
+          <button type="button" onclick="fillSample(3)" class="text-xs px-2.5 py-1 bg-amber-50 hover:bg-amber-100 text-amber-800 rounded-lg flex-shrink-0 transition border border-amber-200">
+            烟台深加工备忘
+          </button>
+        `;
+      } else {
+        box.innerHTML = `
+          <span class="text-xs text-slate-400 flex-shrink-0">填入示例：</span>
+          <button type="button" onclick="fillSample(1)" class="text-xs px-2.5 py-1 bg-slate-100 hover:bg-slate-200 text-slate-600 rounded-lg flex-shrink-0 transition">
+            威海鲜果/果脯厂
+          </button>
+          <button type="button" onclick="fillSample(2)" class="text-xs px-2.5 py-1 bg-slate-100 hover:bg-slate-200 text-slate-600 rounded-lg flex-shrink-0 transition">
+            四川冻干/原浆厂
+          </button>
+          <button type="button" onclick="fillSample(3)" class="text-xs px-2.5 py-1 bg-slate-100 hover:bg-slate-200 text-slate-600 rounded-lg flex-shrink-0 transition">
+            新疆阿图什干果
+          </button>
+        `;
+      }
+    }
+
     function fillSample(id) {
-      document.getElementById("raw-input").value = SAMPLES[id];
+      const data = currentRecordTargetStatus === "planned" ? SAMPLES_PLANNED : SAMPLES_VISITED;
+      document.getElementById("raw-input").value = data[id];
       updateCharCount();
-      showToast("已填入拜访考察示例");
+      const label = currentRecordTargetStatus === "planned" ? "待拜访行程示例" : "已考察档案示例";
+      showToast(`已填入【${label}】`);
+      scheduleSaveDraft();
+    }
+
+    // 从档案列表/待拜访列表一键启动碎片录入
+    function startFragmentEntry(status = 'visited') {
+      switchTab('tab-record');
+      setRecordTargetStatus(status);
+      const rawInput = document.getElementById("raw-input");
+      if (rawInput) {
+        setTimeout(() => {
+          rawInput.focus();
+          rawInput.scrollIntoView({ behavior: "smooth", block: "center" });
+        }, 120);
+      }
+      const label = status === 'planned' ? '待拜访行程 (提前规划)' : '已考察档案 (正式库)';
+      showToast(`⚡ 已开启【${label}】碎片录入！`);
     }
 
     // ----------------- 草稿箱与保存分类逻辑 -----------------
@@ -2028,22 +2183,51 @@
 
     function setRecordTargetStatus(st) {
       currentRecordTargetStatus = st;
+      // 顶部切换条
+      const topBtnVisited = document.getElementById("top-record-target-visited");
+      const topBtnPlanned = document.getElementById("top-record-target-planned");
+      // 表单内部切换条
       const btnVisited = document.getElementById("record-target-visited");
       const btnPlanned = document.getElementById("record-target-planned");
+      
       const dateBox = document.getElementById("record-plan-date-box");
       const saveBtnText = document.getElementById("btn-save-record-text");
+      const extractBtnText = document.getElementById("btn-extract-text");
+      const tipBox = document.getElementById("record-tip-box");
+      const tipText = document.getElementById("record-tip-text");
+      const rawInput = document.getElementById("raw-input");
+      const rawInputLabel = document.getElementById("raw-input-label");
 
       if (st === "visited") {
+        if (topBtnVisited) topBtnVisited.className = "flex-1 py-2.5 rounded-xl bg-white text-emerald-800 shadow-xs flex items-center justify-center space-x-1.5 transition font-bold";
+        if (topBtnPlanned) topBtnPlanned.className = "flex-1 py-2.5 rounded-xl text-slate-600 hover:text-slate-900 flex items-center justify-center space-x-1.5 transition";
         if (btnVisited) btnVisited.className = "py-2.5 px-3 rounded-lg text-xs font-bold transition flex items-center justify-center space-x-1.5 bg-white text-emerald-700 shadow-xs border border-emerald-200";
         if (btnPlanned) btnPlanned.className = "py-2.5 px-3 rounded-lg text-xs font-semibold text-slate-600 hover:text-slate-800 transition flex items-center justify-center space-x-1.5";
         if (dateBox) dateBox.classList.add("hidden");
         if (saveBtnText) saveBtnText.innerText = "确认无误，保存为已考察档案";
+        if (extractBtnText) extractBtnText.innerText = "AI 智能提取已考察档案";
+        if (rawInputLabel) rawInputLabel.innerHTML = `<i data-lucide="file-text" class="w-4 h-4 mr-1 text-slate-500"></i>粘贴已考察随笔 / 拜访杂记`;
+        if (tipBox) tipBox.className = "bg-emerald-50 border border-emerald-200 rounded-xl p-3 text-xs text-emerald-900 flex items-start space-x-2";
+        if (tipText) tipText.innerHTML = `<span class="font-semibold">已考察使用窍门：</span>把拜访工厂后记在备忘录、微信聊天里的随笔话直接粘进来，点“智能提取”，自动梳理入库！`;
+        if (rawInput && (!rawInput.value || rawInput.placeholder.includes("润丰果业合作社"))) {
+          rawInput.placeholder = "例：今天跑了威海荣成的一家果业合作社，李总13863128910，他们有1000多亩波姬红鲜果基地，主要做鲜果和烘干片，冻干片吨价4.5万，首单要全款后面月结30天。厂里设备很新，合作意愿很高...";
+        }
       } else {
+        if (topBtnPlanned) topBtnPlanned.className = "flex-1 py-2.5 rounded-xl bg-white text-amber-900 shadow-xs flex items-center justify-center space-x-1.5 transition font-bold";
+        if (topBtnVisited) topBtnVisited.className = "flex-1 py-2.5 rounded-xl text-slate-600 hover:text-slate-900 flex items-center justify-center space-x-1.5 transition";
         if (btnPlanned) btnPlanned.className = "py-2.5 px-3 rounded-lg text-xs font-bold transition flex items-center justify-center space-x-1.5 bg-white text-amber-800 shadow-xs border border-amber-300";
         if (btnVisited) btnVisited.className = "py-2.5 px-3 rounded-lg text-xs font-semibold text-slate-600 hover:text-slate-800 transition flex items-center justify-center space-x-1.5";
         if (dateBox) dateBox.classList.remove("hidden");
         if (saveBtnText) saveBtnText.innerText = "确认无误，加入待拜访行程";
+        if (extractBtnText) extractBtnText.innerText = "AI 智能提取待拜访行程";
+        if (rawInputLabel) rawInputLabel.innerHTML = `<i data-lucide="calendar-plus" class="w-4 h-4 mr-1 text-amber-600"></i>粘贴待拜访信息 / 微信行程备忘`;
+        if (tipBox) tipBox.className = "bg-amber-50 border border-amber-200 rounded-xl p-3 text-xs text-amber-900 flex items-start space-x-2";
+        if (tipText) tipText.innerHTML = `<span class="font-semibold">待拜访使用窍门：</span>把微信收到的推荐消息、行程计划或随手备忘直接粘进来，自动提取工厂名称、预约时间与联系人提前备档！`;
+        if (rawInput && (!rawInput.value || rawInput.placeholder.includes("威海荣成的一家果业"))) {
+          rawInput.placeholder = "例：下周四去威海文登拜访润丰果业合作社，张总 13963158821，预约上午10点看波姬红烘干线，顺便带样品对比洽谈供货价格...";
+        }
       }
+      renderSampleButtons(st);
       scheduleSaveDraft();
       lucide.createIcons();
     }
@@ -2217,6 +2401,10 @@
           document.getElementById("field-contact-role").value = res.data.contact_role || "";
           document.getElementById("field-contact-phone").value = res.data.contact_phone || "";
           document.getElementById("field-extra-notes").value = res.data.extra_notes || "";
+          if (res.data.plan_date) {
+            const planDateEl = document.getElementById("field-plan-date");
+            if (planDateEl) planDateEl.value = res.data.plan_date;
+          }
 
           const formBox = document.getElementById("form-container");
           formBox.classList.remove("hidden");
@@ -2231,7 +2419,7 @@
         showToast("网络请求异常");
       } finally {
         btn.disabled = false;
-        btnText.innerText = "AI 智能提取结构化信息";
+        btnText.innerText = currentRecordTargetStatus === "planned" ? "AI 智能提取待拜访行程" : "AI 智能提取已考察档案";
       }
     }
 
@@ -2386,12 +2574,21 @@
       const container = document.getElementById("supplier-cards");
       if (!list || list.length === 0) {
         container.innerHTML = `
-          <div class="bg-white rounded-2xl p-8 text-center border border-slate-200 space-y-2">
+          <div class="bg-white rounded-2xl p-8 text-center border border-slate-200 space-y-2.5">
             <div class="text-3xl">📅</div>
             <div class="text-xs font-semibold text-slate-700">暂无待拜访行程规划</div>
-            <p class="text-[11px] text-slate-400">出差前可点击右上角「+ 加行程」提前备档</p>
+            <p class="text-[11px] text-slate-400">出差前可直接粘贴备忘碎片，快速提取创建行程</p>
+            <div class="pt-1 flex items-center justify-center space-x-2">
+              <button onclick="startFragmentEntry('planned')" class="px-3.5 py-1.5 bg-amber-500 hover:bg-amber-600 active:bg-amber-700 text-white rounded-xl text-xs font-semibold shadow-xs flex items-center transition">
+                <i data-lucide="wand-2" class="w-3.5 h-3.5 mr-1"></i>碎片录入行程
+              </button>
+              <button onclick="openPlanModal()" class="px-3 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl text-xs font-medium border border-slate-200 flex items-center transition">
+                <i data-lucide="plus" class="w-3.5 h-3.5 mr-0.5"></i>手动添加
+              </button>
+            </div>
           </div>
         `;
+        lucide.createIcons();
         return;
       }
 
@@ -2474,12 +2671,18 @@
       const container = document.getElementById("supplier-cards");
       if (!list || list.length === 0) {
         container.innerHTML = `
-          <div class="bg-white rounded-2xl p-8 text-center border border-slate-200">
-            <div class="text-3xl mb-2">📁</div>
-            <div class="text-xs font-semibold text-slate-600">暂无符合条件的供应商档案</div>
-            <p class="text-[11px] text-slate-400 mt-1">可以在录入页粘贴随手记快速建档</p>
+          <div class="bg-white rounded-2xl p-8 text-center border border-slate-200 space-y-2.5">
+            <div class="text-3xl mb-1">📁</div>
+            <div class="text-xs font-semibold text-slate-700">暂无符合条件的供应商档案</div>
+            <p class="text-[11px] text-slate-400">拜访工厂后可将随笔记录直接粘贴智能提取建档</p>
+            <div class="pt-1 flex items-center justify-center">
+              <button onclick="startFragmentEntry('visited')" class="px-3.5 py-1.5 bg-emerald-600 hover:bg-emerald-700 active:bg-emerald-800 text-white rounded-xl text-xs font-semibold shadow-xs flex items-center transition">
+                <i data-lucide="wand-2" class="w-3.5 h-3.5 mr-1"></i>碎片录入已考察档案
+              </button>
+            </div>
           </div>
         `;
+        lucide.createIcons();
         return;
       }
 
@@ -3703,6 +3906,7 @@
     // 初始化加载：鉴权检测、草稿恢复与待办数据加载
     window.addEventListener("DOMContentLoaded", () => {
       checkMyAuthStatus();
+      renderSampleButtons(currentRecordTargetStatus);
       restoreDraftFromStorage();
       bindDraftAutoSaveEvents();
       loadFollowups();

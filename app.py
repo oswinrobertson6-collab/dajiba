@@ -411,6 +411,7 @@ def rule_based_extract(text: str) -> Dict[str, Any]:
         "contact_name": "",
         "contact_phone": "",
         "contact_role": "",
+        "plan_date": "",
         "raw_notes": text.strip(),
         "extra_notes": ""
     }
@@ -440,9 +441,10 @@ def rule_based_extract(text: str) -> Dict[str, Any]:
         res["contact_name"] = self_intro.group(1).strip()
     
     # 匹配类似 "13863128910，李建国" 或 "李建国 13863128910"
-    around_phone = re.search(r"(?:1[3-9]\d{9}[，,\s]+([\u4e00-\u9fa5]{2,4}))|(?:([\u4e00-\u9fa5]{2,4})[，,\s]+1[3-9]\d{9})", text)
+    around_phone = re.search(r"(?:1[3-9]\d{9}[，,\s]+([\u4e00-\u9fa5]{2,6}))|(?:([\u4e00-\u9fa5]{2,6})[，,\s]+1[3-9]\d{9})", text)
     if around_phone and not res["contact_name"]:
         name_cand = around_phone.group(1) or around_phone.group(2)
+        name_cand = re.sub(r"^(?:联系人|对接人|接待人|系人|找|对接|和|向|位)+[：:\s]*", "", name_cand).strip()
         if not any(w in name_cand for w in ["随时", "电话", "手机", "微信"]):
             res["contact_name"] = name_cand.strip()
 
@@ -519,6 +521,13 @@ def rule_based_extract(text: str) -> Dict[str, Any]:
     if pay_match:
         res["payment_terms"] = pay_match.group(1).strip()
 
+    # 9. 计划拜访日期 / 时间
+    date_match = re.search(r"(\d{4}[-/年]\d{1,2}[-/月]\d{1,2}[日号]?|\d{1,2}月\d{1,2}[日号]?|明天(?:上午|下午|晚上)?|后天(?:上午|下午|晚上)?|下周[一二三四五六日天](?:上午|下午|晚上)?)", text)
+    if date_match:
+        res["plan_date"] = date_match.group(1).strip()
+    else:
+        res["plan_date"] = ""
+
     return res
 
 async def ai_extract_info(text: str, settings: Dict[str, str]) -> Dict[str, Any]:
@@ -531,7 +540,7 @@ async def ai_extract_info(text: str, settings: Dict[str, str]) -> Dict[str, Any]
         return rule_based_extract(text)
 
     prompt = f"""
-你是一名资深的供应链采购与工厂实地尽调专家。请从以下用户在考察无花果工厂后记录的零碎文字中，精准提取结构化信息，以严格的合法 JSON 格式输出，不要输出任何多余的 Markdown 标记或解说。
+你是一名资深的供应链采购与工厂实地尽调专家。请从以下用户记录的零碎文字中（包括实地考察随笔或待拜访行程备忘），精准提取结构化信息，以严格的合法 JSON 格式输出，不要输出任何多余的 Markdown 标记或解说。
 
 字段说明：
 - company_name: 公司/工厂/合作社全称（必须尽量规范）
@@ -545,9 +554,10 @@ async def ai_extract_info(text: str, settings: Dict[str, str]) -> Dict[str, Any]
 - contact_name: 联系人姓名（注意：提到的上下游合作方、知名品牌客户绝不是联系人！）
 - contact_role: 职务（如白总则职务为总经理或负责人，若无明确职务可留空）
 - contact_phone: 手机号或联系电话
+- plan_date: 预定拜访日期/时间（若提到计划何时去拜访，如“下周三”、“明天上午10点”、“11月18号”等，尽量提取为日期如"YYYY-MM-DD"或简要时间说明，未提及留空""）
 - extra_notes: 【核心极其重要！】必须完整记录所有商业背景与评价，包括：
   1. 上下游合作关系（例如：为谁供货、是哪个品牌/果园的合作商、代工厂、OEM伙伴）；
-  2. 实地考察印象与真实商业疑虑（例如：怀疑是外采包装贴牌、设备老旧、车间洁净度、自建工厂情况等）。绝不可丢弃任何定性描述！
+  2. 实地考察印象或拜访目的与真实商业疑虑（例如：怀疑是外采包装贴牌、设备老旧、车间洁净度、自建工厂情况等）。绝不可丢弃任何定性描述！
 - raw_notes: 原始记录
 
 如果某字段完全未提及，请留空字符串 ""。
