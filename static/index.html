@@ -371,90 +371,137 @@
 
     <!-- ================= 页面 3: 商务跟进与日程待办 ================= -->
     <section id="tab-calendar" class="tab-page space-y-3.5 hidden">
-      <!-- 顶部标题与新建按钮 -->
-      <div class="flex items-center justify-between">
-        <div>
-          <h2 class="text-sm font-bold text-slate-800 flex items-center">
-            <i data-lucide="calendar-check-2" class="w-4 h-4 text-emerald-600 mr-1.5"></i>
-            商务跟进待办
-          </h2>
-          <p class="text-[11px] text-slate-400">已拜访客户样品测试、回访与签约进度</p>
-        </div>
-        <button id="btn-add-followup" onclick="openFollowupModal()" class="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 active:bg-emerald-800 text-white rounded-xl text-xs font-semibold flex items-center shadow-xs transition">
-          <i data-lucide="plus" class="w-3.5 h-3.5 mr-1"></i>新建待办
+      <!-- 跟进中心顶部：日程待办 vs 沟通动态流水 切换 -->
+      <div class="bg-slate-200/80 p-1 rounded-2xl flex items-center text-xs font-semibold">
+        <button onclick="switchCalendarSubTab('agenda')" id="btn-subtab-agenda" class="flex-1 py-2 rounded-xl bg-white text-emerald-800 shadow-xs flex items-center justify-center space-x-1.5 transition font-bold">
+          <i data-lucide="calendar" class="w-3.5 h-3.5 text-emerald-600"></i>
+          <span>商务日程待办 (<span id="count-todo-badge">0</span>)</span>
+        </button>
+        <button onclick="switchCalendarSubTab('comms')" id="btn-subtab-comms" class="flex-1 py-2 rounded-xl text-slate-600 hover:text-slate-900 flex items-center justify-center space-x-1.5 transition">
+          <i data-lucide="message-square" class="w-3.5 h-3.5 text-amber-500"></i>
+          <span>沟通记录动态 (<span id="count-comms-badge">0</span>)</span>
         </button>
       </div>
 
-      <!-- 待办指标快速切换胶囊 -->
-      <div class="grid grid-cols-3 gap-2 text-center text-xs">
-        <div onclick="filterFollowupList('today')" id="card-stat-today" class="bg-white p-2.5 rounded-2xl border border-slate-200 shadow-2xs cursor-pointer hover:border-amber-400 transition">
-          <span class="block text-[10px] text-slate-400 mb-0.5">🔥 今日待办</span>
-          <span id="stat-followup-today" class="text-lg font-black text-amber-600">0</span>
+      <div id="calendar-agenda-view" class="space-y-3.5">
+        <!-- 顶部标题与新建按钮 -->
+        <div class="flex items-center justify-between">
+          <div>
+            <h2 class="text-sm font-bold text-slate-800 flex items-center">
+              <i data-lucide="calendar-check-2" class="w-4 h-4 text-emerald-600 mr-1.5"></i>
+              商务跟进待办
+            </h2>
+            <p class="text-[11px] text-slate-400">已拜访客户样品测试、回访与签约进度</p>
+          </div>
+          <button id="btn-add-followup" onclick="openFollowupModal()" class="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 active:bg-emerald-800 text-white rounded-xl text-xs font-semibold flex items-center shadow-xs transition">
+            <i data-lucide="plus" class="w-3.5 h-3.5 mr-1"></i>新建待办
+          </button>
         </div>
-        <div onclick="filterFollowupList('overdue')" id="card-stat-overdue" class="bg-white p-2.5 rounded-2xl border border-slate-200 shadow-2xs cursor-pointer hover:border-red-400 transition">
-          <span class="block text-[10px] text-slate-400 mb-0.5">⚠️ 逾期待办</span>
-          <span id="stat-followup-overdue" class="text-lg font-black text-rose-600">0</span>
+
+        <!-- 待办指标快速切换胶囊 -->
+        <div class="grid grid-cols-3 gap-2 text-center text-xs">
+          <div onclick="filterFollowupList('today')" id="card-stat-today" class="bg-white p-2.5 rounded-2xl border border-slate-200 shadow-2xs cursor-pointer hover:border-amber-400 transition">
+            <span class="block text-[10px] text-slate-400 mb-0.5">🔥 今日待办</span>
+            <span id="stat-followup-today" class="text-lg font-black text-amber-600">0</span>
+          </div>
+          <div onclick="filterFollowupList('overdue')" id="card-stat-overdue" class="bg-white p-2.5 rounded-2xl border border-slate-200 shadow-2xs cursor-pointer hover:border-red-400 transition">
+            <span class="block text-[10px] text-slate-400 mb-0.5">⚠️ 逾期待办</span>
+            <span id="stat-followup-overdue" class="text-lg font-black text-rose-600">0</span>
+          </div>
+          <div onclick="filterFollowupList('all_pending')" id="card-stat-pending" class="bg-white p-2.5 rounded-2xl border border-slate-200 shadow-2xs cursor-pointer hover:border-emerald-400 transition">
+            <span class="block text-[10px] text-slate-400 mb-0.5">⚡ 待处理总数</span>
+            <span id="stat-followup-pending" class="text-lg font-black text-emerald-600">0</span>
+          </div>
         </div>
-        <div onclick="filterFollowupList('all_pending')" id="card-stat-pending" class="bg-white p-2.5 rounded-2xl border border-slate-200 shadow-2xs cursor-pointer hover:border-emerald-400 transition">
-          <span class="block text-[10px] text-slate-400 mb-0.5">⚡ 待处理总数</span>
-          <span id="stat-followup-pending" class="text-lg font-black text-emerald-600">0</span>
+
+        <!-- 月历交互卡片 -->
+        <div class="bg-white rounded-2xl p-3.5 border border-slate-200 shadow-xs space-y-3">
+          <!-- 月历标题与月份翻页 -->
+          <div class="flex items-center justify-between border-b border-slate-100 pb-2.5">
+            <div class="flex items-center space-x-2">
+              <span id="calendar-month-title" class="font-extrabold text-sm text-slate-800">2026年11月</span>
+              <button onclick="goToCurrentMonth()" class="text-[10px] px-2 py-0.5 bg-slate-100 hover:bg-slate-200 text-slate-600 rounded-md font-medium transition">回到本月</button>
+            </div>
+            <div class="flex items-center space-x-1">
+              <button onclick="changeMonth(-1)" class="p-1 hover:bg-slate-100 rounded-lg text-slate-600 transition">
+                <i data-lucide="chevron-left" class="w-4 h-4"></i>
+              </button>
+              <button onclick="changeMonth(1)" class="p-1 hover:bg-slate-100 rounded-lg text-slate-600 transition">
+                <i data-lucide="chevron-right" class="w-4 h-4"></i>
+              </button>
+            </div>
+          </div>
+
+          <!-- 星期表头 -->
+          <div class="grid grid-cols-7 text-center text-[11px] font-bold text-slate-400">
+            <div>一</div><div>二</div><div>三</div><div>四</div><div>五</div><div class="text-amber-600 font-extrabold">六</div><div class="text-amber-600 font-extrabold">日</div>
+          </div>
+
+          <!-- 日历单元格网格 (JS 动态渲染 35 或 42 格) -->
+          <div id="calendar-days-grid" class="grid grid-cols-7 gap-1 text-center text-xs">
+            <!-- 动态注入天数单元格 -->
+          </div>
+
+          <!-- 图例说明 -->
+          <div class="flex items-center justify-center space-x-3 text-[10px] text-slate-400 pt-1.5 border-t border-slate-100">
+            <span class="flex items-center"><span class="w-2 h-2 rounded-full bg-rose-500 mr-1"></span>逾期</span>
+            <span class="flex items-center"><span class="w-2 h-2 rounded-full bg-amber-500 mr-1"></span>今日</span>
+            <span class="flex items-center"><span class="w-2 h-2 rounded-full bg-emerald-500 mr-1"></span>待办</span>
+            <span class="flex items-center"><span class="w-2 h-2 rounded-full bg-slate-300 mr-1"></span>已完结</span>
+          </div>
+        </div>
+
+        <!-- 待办事项列表区 -->
+        <div class="space-y-2">
+          <div class="flex items-center justify-between px-1">
+            <div class="flex items-center space-x-1.5">
+              <span id="followup-list-title" class="font-bold text-xs text-slate-700">全部待办清单</span>
+              <span id="followup-list-count" class="text-[10px] bg-slate-100 text-slate-600 px-1.5 py-0.2 rounded-full font-bold">0</span>
+            </div>
+            <!-- 状态过滤小按钮 -->
+            <div class="flex items-center space-x-1 text-[11px]">
+              <button onclick="filterFollowupList('all_pending')" id="btn-fltr-pending" class="px-2 py-0.5 rounded-md font-semibold bg-emerald-100 text-emerald-800 transition">待办</button>
+              <button onclick="filterFollowupList('completed')" id="btn-fltr-completed" class="px-2 py-0.5 rounded-md text-slate-500 hover:text-slate-800 transition">已完成</button>
+              <button onclick="filterFollowupList('all')" id="btn-fltr-all" class="px-2 py-0.5 rounded-md text-slate-500 hover:text-slate-800 transition">全部</button>
+            </div>
+          </div>
+
+          <!-- 待办卡片容器 -->
+          <div id="followup-list-container" class="space-y-2">
+            <!-- 动态加载 -->
+          </div>
         </div>
       </div>
 
-      <!-- 月历交互卡片 -->
-      <div class="bg-white rounded-2xl p-3.5 border border-slate-200 shadow-xs space-y-3">
-        <!-- 月历标题与月份翻页 -->
-        <div class="flex items-center justify-between border-b border-slate-100 pb-2.5">
-          <div class="flex items-center space-x-2">
-            <span id="calendar-month-title" class="font-extrabold text-sm text-slate-800">2026年11月</span>
-            <button onclick="goToCurrentMonth()" class="text-[10px] px-2 py-0.5 bg-slate-100 hover:bg-slate-200 text-slate-600 rounded-md font-medium transition">回到本月</button>
+      <!-- 沟通动态流水页面 (Communications Stream) -->
+      <div id="calendar-comms-view" class="space-y-3 hidden">
+        <!-- 沟通动态操作栏 -->
+        <div class="flex items-center justify-between">
+          <div>
+            <h3 class="text-xs font-bold text-slate-800 flex items-center">
+              <i data-lucide="message-square" class="w-3.5 h-3.5 text-emerald-600 mr-1"></i>
+              全团队沟通动态流水
+            </h3>
+            <p class="text-[10px] text-slate-400">微信聊天、电话沟通、议价与样品反馈全流程记录</p>
           </div>
-          <div class="flex items-center space-x-1">
-            <button onclick="changeMonth(-1)" class="p-1 hover:bg-slate-100 rounded-lg text-slate-600 transition">
-              <i data-lucide="chevron-left" class="w-4 h-4"></i>
-            </button>
-            <button onclick="changeMonth(1)" class="p-1 hover:bg-slate-100 rounded-lg text-slate-600 transition">
-              <i data-lucide="chevron-right" class="w-4 h-4"></i>
-            </button>
-          </div>
+          <button onclick="openCommModal()" class="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 active:bg-emerald-800 text-white rounded-xl text-xs font-semibold flex items-center shadow-xs transition">
+            <i data-lucide="plus" class="w-3.5 h-3.5 mr-1"></i>记沟通
+          </button>
         </div>
 
-        <!-- 星期表头 -->
-        <div class="grid grid-cols-7 text-center text-[11px] font-bold text-slate-400">
-          <div>一</div><div>二</div><div>三</div><div>四</div><div>五</div><div class="text-amber-600 font-extrabold">六</div><div class="text-amber-600 font-extrabold">日</div>
+        <!-- 沟通类型筛选胶囊 -->
+        <div class="flex items-center space-x-1.5 overflow-x-auto no-scrollbar py-1 text-xs">
+          <button onclick="filterGlobalComms('全部', this)" class="comm-fltr-btn px-2.5 py-1 rounded-full bg-emerald-600 text-white font-medium flex-shrink-0">全部</button>
+          <button onclick="filterGlobalComms('微信', this)" class="comm-fltr-btn px-2.5 py-1 rounded-full bg-slate-100 text-slate-600 flex-shrink-0">💬 微信</button>
+          <button onclick="filterGlobalComms('电话', this)" class="comm-fltr-btn px-2.5 py-1 rounded-full bg-slate-100 text-slate-600 flex-shrink-0">📞 电话</button>
+          <button onclick="filterGlobalComms('面谈', this)" class="comm-fltr-btn px-2.5 py-1 rounded-full bg-slate-100 text-slate-600 flex-shrink-0">🤝 面谈</button>
+          <button onclick="filterGlobalComms('样品', this)" class="comm-fltr-btn px-2.5 py-1 rounded-full bg-slate-100 text-slate-600 flex-shrink-0">📦 样品</button>
+          <button onclick="filterGlobalComms('议价', this)" class="comm-fltr-btn px-2.5 py-1 rounded-full bg-slate-100 text-slate-600 flex-shrink-0">💰 议价</button>
+          <button onclick="filterGlobalComms('合同', this)" class="comm-fltr-btn px-2.5 py-1 rounded-full bg-slate-100 text-slate-600 flex-shrink-0">📝 合同</button>
         </div>
 
-        <!-- 日历单元格网格 (JS 动态渲染 35 或 42 格) -->
-        <div id="calendar-days-grid" class="grid grid-cols-7 gap-1 text-center text-xs">
-          <!-- 动态注入天数单元格 -->
-        </div>
-
-        <!-- 图例说明 -->
-        <div class="flex items-center justify-center space-x-3 text-[10px] text-slate-400 pt-1.5 border-t border-slate-100">
-          <span class="flex items-center"><span class="w-2 h-2 rounded-full bg-rose-500 mr-1"></span>逾期</span>
-          <span class="flex items-center"><span class="w-2 h-2 rounded-full bg-amber-500 mr-1"></span>今日</span>
-          <span class="flex items-center"><span class="w-2 h-2 rounded-full bg-emerald-500 mr-1"></span>待办</span>
-          <span class="flex items-center"><span class="w-2 h-2 rounded-full bg-slate-300 mr-1"></span>已完结</span>
-        </div>
-      </div>
-
-      <!-- 待办事项列表区 -->
-      <div class="space-y-2">
-        <div class="flex items-center justify-between px-1">
-          <div class="flex items-center space-x-1.5">
-            <span id="followup-list-title" class="font-bold text-xs text-slate-700">全部待办清单</span>
-            <span id="followup-list-count" class="text-[10px] bg-slate-100 text-slate-600 px-1.5 py-0.2 rounded-full font-bold">0</span>
-          </div>
-          <!-- 状态过滤小按钮 -->
-          <div class="flex items-center space-x-1 text-[11px]">
-            <button onclick="filterFollowupList('all_pending')" id="btn-fltr-pending" class="px-2 py-0.5 rounded-md font-semibold bg-emerald-100 text-emerald-800 transition">待办</button>
-            <button onclick="filterFollowupList('completed')" id="btn-fltr-completed" class="px-2 py-0.5 rounded-md text-slate-500 hover:text-slate-800 transition">已完成</button>
-            <button onclick="filterFollowupList('all')" id="btn-fltr-all" class="px-2 py-0.5 rounded-md text-slate-500 hover:text-slate-800 transition">全部</button>
-          </div>
-        </div>
-
-        <!-- 待办卡片容器 -->
-        <div id="followup-list-container" class="space-y-2">
+        <!-- 沟通动态列表容器 -->
+        <div id="global-comms-list-container" class="space-y-2.5">
           <!-- 动态加载 -->
         </div>
       </div>
@@ -837,6 +884,25 @@
           </div>
         </div>
 
+        <!-- 沟通情况记录专区 (Communication History) -->
+        <div class="border-t border-slate-100 pt-2.5 space-y-2">
+          <div class="flex items-center justify-between">
+            <div class="flex items-center space-x-1.5">
+              <label class="font-semibold text-slate-700 flex items-center text-xs">
+                <i data-lucide="message-square" class="w-4 h-4 mr-1 text-emerald-600"></i>
+                沟通情况记录
+              </label>
+              <span id="modal-comm-count-badge" class="px-1.5 py-0.2 rounded-full text-[10px] bg-emerald-100 text-emerald-800 font-bold">0次</span>
+            </div>
+            <button type="button" onclick="openAddCommForCurrentSupplier()" class="text-[11px] text-emerald-700 bg-emerald-50 hover:bg-emerald-100 px-2 py-0.5 rounded-lg flex items-center border border-emerald-300 font-semibold transition">
+              <i data-lucide="plus" class="w-3 h-3 mr-0.5"></i>记一次沟通
+            </button>
+          </div>
+          <div id="modal-comm-list" class="space-y-2">
+            <!-- 动态渲染该供应商的沟通记录 -->
+          </div>
+        </div>
+
         <div id="modal-raw-container" class="bg-slate-100 p-2.5 rounded-lg border text-slate-500 text-[11px]">
           <span class="font-semibold block text-slate-600 mb-0.5">原始拜访随笔：</span>
           <p id="modal-raw-notes" class="whitespace-pre-wrap"></p>
@@ -1031,6 +1097,126 @@
           <span>保存待办事项</span>
         </button>
         <button onclick="closeFollowupModal()" class="px-4 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-600 rounded-xl text-xs font-medium transition">
+          取消
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ================= 沟通情况记录弹窗 (Communication Modal) ================= -->
+  <div id="comm-modal" class="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-end sm:items-center justify-center hidden p-0 sm:p-4">
+    <div class="bg-white w-full max-w-md rounded-t-3xl sm:rounded-2xl p-5 space-y-3.5 shadow-2xl animate-in slide-in-from-bottom duration-200 max-h-[90vh] overflow-y-auto">
+      <div class="flex items-center justify-between border-b pb-2.5">
+        <div class="flex items-center space-x-2">
+          <span class="text-xl">💬</span>
+          <div>
+            <h3 id="comm-modal-title" class="font-bold text-sm text-slate-800">记录沟通情况</h3>
+            <p id="comm-modal-subtitle" class="text-[11px] text-slate-400">记录微信聊天、电话或面谈要点，全员同步进度</p>
+          </div>
+        </div>
+        <button onclick="closeCommModal()" class="w-7 h-7 rounded-full bg-slate-100 hover:bg-slate-200 flex items-center justify-center text-slate-500 transition">✕</button>
+      </div>
+
+      <input type="hidden" id="comm-id">
+
+      <div class="space-y-3 text-xs">
+        <!-- 关联供应商 -->
+        <div>
+          <label class="block font-semibold text-slate-700 mb-1">🏢 沟通供应商 *</label>
+          <select id="comm-supplier-select" class="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl outline-none font-bold text-slate-800 focus:bg-white focus:border-emerald-500">
+            <!-- 动态填充供应商列表 -->
+          </select>
+        </div>
+
+        <!-- 沟通方式 / 类型 -->
+        <div>
+          <label class="block font-semibold text-slate-700 mb-1">📞 沟通方式 *</label>
+          <div class="grid grid-cols-4 gap-1.5">
+            <button type="button" onclick="selectCommType('微信')" class="comm-type-pill py-1.5 px-2 rounded-lg border text-center font-medium transition text-xs bg-emerald-600 text-white border-emerald-600">
+              💬 微信
+            </button>
+            <button type="button" onclick="selectCommType('电话')" class="comm-type-pill py-1.5 px-2 rounded-lg border border-slate-200 text-slate-600 hover:bg-slate-100 text-center font-medium transition text-xs">
+              📞 电话
+            </button>
+            <button type="button" onclick="selectCommType('面谈')" class="comm-type-pill py-1.5 px-2 rounded-lg border border-slate-200 text-slate-600 hover:bg-slate-100 text-center font-medium transition text-xs">
+              🤝 面谈
+            </button>
+            <button type="button" onclick="selectCommType('样品')" class="comm-type-pill py-1.5 px-2 rounded-lg border border-slate-200 text-slate-600 hover:bg-slate-100 text-center font-medium transition text-xs">
+              📦 样品
+            </button>
+            <button type="button" onclick="selectCommType('议价')" class="comm-type-pill py-1.5 px-2 rounded-lg border border-slate-200 text-slate-600 hover:bg-slate-100 text-center font-medium transition text-xs">
+              💰 议价
+            </button>
+            <button type="button" onclick="selectCommType('合同')" class="comm-type-pill py-1.5 px-2 rounded-lg border border-slate-200 text-slate-600 hover:bg-slate-100 text-center font-medium transition text-xs">
+              📝 合同
+            </button>
+            <button type="button" onclick="selectCommType('其他')" class="comm-type-pill py-1.5 px-2 rounded-lg border border-slate-200 text-slate-600 hover:bg-slate-100 text-center font-medium transition text-xs">
+              📌 其他
+            </button>
+          </div>
+          <input type="hidden" id="comm-type-val" value="微信">
+        </div>
+
+        <!-- 沟通时间 -->
+        <div>
+          <div class="flex items-center justify-between mb-1">
+            <label class="font-semibold text-slate-700">📅 沟通日期/时间 *</label>
+            <div class="flex space-x-1">
+              <button type="button" onclick="setCommQuickDate(0)" class="text-[10px] px-1.5 py-0.5 bg-slate-100 hover:bg-slate-200 text-slate-600 rounded">今天</button>
+              <button type="button" onclick="setCommQuickDate(-1)" class="text-[10px] px-1.5 py-0.5 bg-slate-100 hover:bg-slate-200 text-slate-600 rounded">昨天</button>
+            </div>
+          </div>
+          <input type="date" id="comm-date" class="w-full p-2 bg-slate-50 border border-slate-200 rounded-xl outline-none font-medium text-slate-800 focus:bg-white focus:border-emerald-500">
+        </div>
+
+        <!-- 沟通要点与情况内容 -->
+        <div>
+          <div class="flex items-center justify-between mb-1">
+            <label class="font-semibold text-slate-700">📝 沟通情况与要点 *</label>
+            <span class="text-[10px] text-slate-400">支持直接粘贴微信随笔</span>
+          </div>
+          <textarea id="comm-content" rows="4" placeholder="例：微信电话沟通李总，首批波姬红冻干片样品已收到测试，脆度与含水率满意。李总报价可从4.5万下调至4.2万/吨，首批需定金30%，发货前结清..." class="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:bg-white focus:border-emerald-500 text-slate-800 leading-relaxed"></textarea>
+
+          <!-- 快捷沟通要点短语 -->
+          <div class="flex items-center space-x-1.5 overflow-x-auto no-scrollbar py-1">
+            <span class="text-[10px] text-slate-400 flex-shrink-0">常用短语:</span>
+            <button type="button" onclick="insertCommSnippet('样品已签收并开始内部测试')" class="text-[10px] px-2 py-0.5 bg-slate-100 hover:bg-slate-200 text-slate-600 rounded-md flex-shrink-0">样品签收</button>
+            <button type="button" onclick="insertCommSnippet('沟通大宗采购阶梯报价与降价空间')" class="text-[10px] px-2 py-0.5 bg-slate-100 hover:bg-slate-200 text-slate-600 rounded-md flex-shrink-0">量大议价</button>
+            <button type="button" onclick="insertCommSnippet('确认账期与付款方式：首单现结，后续月结30天')" class="text-[10px] px-2 py-0.5 bg-slate-100 hover:bg-slate-200 text-slate-600 rounded-md flex-shrink-0">确认账期</button>
+            <button type="button" onclick="insertCommSnippet('索要该批次SC资质与第三方农残重金属检测报告')" class="text-[10px] px-2 py-0.5 bg-slate-100 hover:bg-slate-200 text-slate-600 rounded-md flex-shrink-0">索要质检</button>
+            <button type="button" onclick="insertCommSnippet('沟通交付排单周期与冷链发货')" class="text-[10px] px-2 py-0.5 bg-slate-100 hover:bg-slate-200 text-slate-600 rounded-md flex-shrink-0">排单周期</button>
+          </div>
+        </div>
+
+        <!-- 下一步约定 / 跟进事项 -->
+        <div>
+          <label class="block font-semibold text-slate-700 mb-1">📌 下步约定 / 跟进计划 (选填)</label>
+          <input type="text" id="comm-next-step" placeholder="如：周五前反馈质检数据；下周一寄回签盖章合同" class="w-full p-2 bg-slate-50 border border-slate-200 rounded-xl outline-none font-medium text-slate-800 focus:bg-white focus:border-emerald-500">
+        </div>
+
+        <!-- 同步生成待办日程 -->
+        <div class="bg-amber-50/70 border border-amber-200 rounded-xl p-2.5 space-y-2">
+          <label class="flex items-center space-x-2 cursor-pointer text-xs font-semibold text-amber-900">
+            <input type="checkbox" id="comm-sync-todo" onchange="toggleCommSyncTodo(this.checked)" class="w-3.5 h-3.5 text-amber-600 rounded accent-amber-600">
+            <span>📅 同时在日程中生成待办事项</span>
+          </label>
+          <div id="comm-todo-due-box" class="hidden flex items-center space-x-2 text-[11px] pt-1 border-t border-amber-200/60">
+            <span class="text-amber-800 font-medium flex-shrink-0">待办日期:</span>
+            <input type="date" id="comm-todo-due-date" class="p-1 bg-white border border-amber-200 rounded-lg text-xs outline-none">
+            <div class="flex space-x-1">
+              <button type="button" onclick="setCommTodoQuickDate(1)" class="text-[10px] px-1.5 py-0.5 bg-white text-amber-800 border border-amber-300 rounded">明天</button>
+              <button type="button" onclick="setCommTodoQuickDate(3)" class="text-[10px] px-1.5 py-0.5 bg-white text-amber-800 border border-amber-300 rounded">3天后</button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="pt-2 flex space-x-2">
+        <button id="btn-save-comm" onclick="handleSaveCommunication()" class="flex-1 py-2.5 bg-emerald-600 hover:bg-emerald-700 active:bg-emerald-800 text-white font-medium rounded-xl text-xs flex items-center justify-center space-x-1 shadow-sm transition">
+          <i data-lucide="check" class="w-4 h-4"></i>
+          <span id="comm-btn-text">保存沟通记录</span>
+        </button>
+        <button onclick="closeCommModal()" class="px-4 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-600 rounded-xl text-xs font-medium transition">
           取消
         </button>
       </div>
@@ -2092,6 +2278,7 @@
         loadSuppliers();
       } else if (tabId === "tab-calendar") {
         loadFollowups();
+        loadAllCommunications();
       } else if (tabId === "tab-export") {
         updateStats();
       } else if (tabId === "tab-settings") {
@@ -2635,6 +2822,9 @@
 
             <div class="flex items-center space-x-1.5">
               ${(currentUser && currentUser.role === 'admin') ? `
+                <button onclick="openAddCommForSupplier(${item.id}, event)" class="px-2.5 py-1.5 rounded-lg bg-amber-50 hover:bg-amber-100 text-amber-900 font-medium text-xs border border-amber-300 flex items-center shadow-xs" title="记录沟通情况">
+                  <i data-lucide="message-square" class="w-3 h-3 mr-1 text-amber-600"></i>记沟通
+                </button>
                 <button onclick="openEditPlanModal(${item.id})" class="px-2.5 py-1.5 rounded-lg bg-amber-50 hover:bg-amber-100 text-amber-900 font-medium text-xs border border-amber-300 flex items-center shadow-xs">
                   <i data-lucide="edit-3" class="w-3 h-3 mr-1 text-amber-600"></i>编辑行程
                 </button>
@@ -2755,6 +2945,9 @@
                 </button>
               ` : ''}
               ${(currentUser && currentUser.role === 'admin') ? `
+                <button onclick="openAddCommForSupplier(${item.id}, event)" class="px-2 py-1 rounded-lg bg-emerald-50 hover:bg-emerald-100 text-emerald-800 text-xs flex items-center border border-emerald-300 font-medium" title="记录与该厂的微信/电话沟通">
+                  <i data-lucide="message-square" class="w-3 h-3 mr-0.5 text-emerald-600"></i>记沟通
+                </button>
                 <button onclick="openFollowupModal(${item.id})" class="px-2 py-1 rounded-lg bg-emerald-50 hover:bg-emerald-100 text-emerald-800 text-xs flex items-center border border-emerald-300 font-medium" title="为该厂添加跟进待办">
                   <i data-lucide="calendar-plus" class="w-3 h-3 mr-0.5 text-emerald-600"></i>+待办
                 </button>
@@ -3027,6 +3220,7 @@
           }
 
           loadFollowupsForSupplier(d.id);
+          loadCommunicationsForSupplier(d.id);
           document.getElementById("detail-modal").classList.remove("hidden");
           lucide.createIcons();
         }
@@ -3443,6 +3637,10 @@
         if (res.status === "ok") {
           followupsData = res.data || [];
           updateFollowupStats();
+          const todoCountEl = document.getElementById("count-todo-badge");
+          if (todoCountEl) {
+            todoCountEl.innerText = followupsData.filter(x => x.status === "pending").length;
+          }
           renderCalendar();
           renderFollowupList();
           updateCalendarBadge();
@@ -3903,6 +4101,397 @@
       }
     }
 
+    // ----------------- 客户沟通记录业务逻辑 -----------------
+    let allCommunicationsData = [];
+    let currentCommTypeFilter = "全部";
+
+    function getCommTypeStyle(type) {
+      switch (type) {
+        case "微信":
+          return { icon: "💬", bg: "bg-emerald-100 text-emerald-800 border-emerald-300" };
+        case "电话":
+          return { icon: "📞", bg: "bg-blue-100 text-blue-800 border-blue-300" };
+        case "面谈":
+          return { icon: "🤝", bg: "bg-purple-100 text-purple-800 border-purple-300" };
+        case "样品":
+          return { icon: "📦", bg: "bg-amber-100 text-amber-800 border-amber-300" };
+        case "议价":
+          return { icon: "💰", bg: "bg-rose-100 text-rose-800 border-rose-300" };
+        case "合同":
+          return { icon: "📝", bg: "bg-indigo-100 text-indigo-800 border-indigo-300" };
+        default:
+          return { icon: "📌", bg: "bg-slate-100 text-slate-700 border-slate-300" };
+      }
+    }
+
+    function switchCalendarSubTab(subTab) {
+      const btnAgenda = document.getElementById("btn-subtab-agenda");
+      const btnComms = document.getElementById("btn-subtab-comms");
+      const viewAgenda = document.getElementById("calendar-agenda-view");
+      const viewComms = document.getElementById("calendar-comms-view");
+
+      if (subTab === "agenda") {
+        if (btnAgenda) btnAgenda.className = "flex-1 py-2 rounded-xl bg-white text-emerald-800 shadow-xs flex items-center justify-center space-x-1.5 transition font-bold";
+        if (btnComms) btnComms.className = "flex-1 py-2 rounded-xl text-slate-600 hover:text-slate-900 flex items-center justify-center space-x-1.5 transition";
+        if (viewAgenda) viewAgenda.classList.remove("hidden");
+        if (viewComms) viewComms.classList.add("hidden");
+      } else {
+        if (btnComms) btnComms.className = "flex-1 py-2 rounded-xl bg-white text-emerald-800 shadow-xs flex items-center justify-center space-x-1.5 transition font-bold";
+        if (btnAgenda) btnAgenda.className = "flex-1 py-2 rounded-xl text-slate-600 hover:text-slate-900 flex items-center justify-center space-x-1.5 transition";
+        if (viewAgenda) viewAgenda.classList.add("hidden");
+        if (viewComms) viewComms.classList.remove("hidden");
+        loadAllCommunications();
+      }
+      lucide.createIcons();
+    }
+
+    function selectCommType(type) {
+      const typeValEl = document.getElementById("comm-type-val");
+      if (typeValEl) typeValEl.value = type;
+      document.querySelectorAll(".comm-type-pill").forEach(btn => {
+        if (btn.innerText.includes(type)) {
+          btn.className = "comm-type-pill py-1.5 px-2 rounded-lg border text-center font-bold transition text-xs bg-emerald-600 text-white border-emerald-600 shadow-2xs";
+        } else {
+          btn.className = "comm-type-pill py-1.5 px-2 rounded-lg border border-slate-200 text-slate-600 hover:bg-slate-100 text-center font-medium transition text-xs";
+        }
+      });
+    }
+
+    function setCommQuickDate(offsetDays) {
+      const d = new Date();
+      d.setDate(d.getDate() + offsetDays);
+      const str = d.toISOString().split("T")[0];
+      const el = document.getElementById("comm-date");
+      if (el) el.value = str;
+    }
+
+    function insertCommSnippet(snippet) {
+      const el = document.getElementById("comm-content");
+      if (!el) return;
+      if (el.value.trim()) {
+        el.value = el.value.trim() + "；" + snippet;
+      } else {
+        el.value = snippet;
+      }
+      el.focus();
+    }
+
+    function toggleCommSyncTodo(checked) {
+      const box = document.getElementById("comm-todo-due-box");
+      if (box) box.classList.toggle("hidden", !checked);
+      if (checked) {
+        setCommTodoQuickDate(1);
+      }
+    }
+
+    function setCommTodoQuickDate(offsetDays) {
+      const d = new Date();
+      d.setDate(d.getDate() + offsetDays);
+      const str = d.toISOString().split("T")[0];
+      const el = document.getElementById("comm-todo-due-date");
+      if (el) el.value = str;
+    }
+
+    function openCommModal(presetSupplierId = null, editItem = null) {
+      const select = document.getElementById("comm-supplier-select");
+      if (select) {
+        select.innerHTML = suppliersData.map(s => `
+          <option value="${s.id}">${escapeHtml(s.company_name)} (${s.status === 'planned' ? '待拜访' : '已考察'}${s.location ? ' · ' + s.location : ''})</option>
+        `).join("");
+      }
+
+      if (editItem) {
+        document.getElementById("comm-id").value = editItem.id;
+        document.getElementById("comm-modal-title").innerText = "编辑沟通记录";
+        document.getElementById("comm-btn-text").innerText = "保存沟通修改";
+        if (select) select.value = editItem.supplier_id;
+        selectCommType(editItem.comm_type || "微信");
+        document.getElementById("comm-date").value = editItem.comm_date || getTodayStr();
+        document.getElementById("comm-content").value = editItem.content || "";
+        document.getElementById("comm-next-step").value = editItem.next_step || "";
+        const syncCheckbox = document.getElementById("comm-sync-todo");
+        if (syncCheckbox) {
+          syncCheckbox.checked = false;
+          toggleCommSyncTodo(false);
+        }
+      } else {
+        document.getElementById("comm-id").value = "";
+        document.getElementById("comm-modal-title").innerText = "记录沟通情况";
+        document.getElementById("comm-btn-text").innerText = "保存沟通记录";
+        if (presetSupplierId && select) {
+          select.value = presetSupplierId;
+        }
+        selectCommType("微信");
+        document.getElementById("comm-date").value = getTodayStr();
+        document.getElementById("comm-content").value = "";
+        document.getElementById("comm-next-step").value = "";
+        const syncCheckbox = document.getElementById("comm-sync-todo");
+        if (syncCheckbox) {
+          syncCheckbox.checked = false;
+          toggleCommSyncTodo(false);
+        }
+      }
+
+      document.getElementById("comm-modal").classList.remove("hidden");
+      lucide.createIcons();
+    }
+
+    function closeCommModal() {
+      document.getElementById("comm-modal").classList.add("hidden");
+    }
+
+    function openAddCommForCurrentSupplier() {
+      const id = document.getElementById("modal-id").value;
+      if (!id) return;
+      openCommModal(parseInt(id));
+    }
+
+    function openAddCommForSupplier(supplierId, e) {
+      if (e) e.stopPropagation();
+      openCommModal(supplierId);
+    }
+
+    async function handleSaveCommunication() {
+      const commId = document.getElementById("comm-id").value;
+      const supplierSelect = document.getElementById("comm-supplier-select");
+      const supplier_id = supplierSelect ? parseInt(supplierSelect.value) : null;
+      const comm_type = document.getElementById("comm-type-val").value || "微信";
+      const comm_date = document.getElementById("comm-date").value || getTodayStr();
+      const content = document.getElementById("comm-content").value.trim();
+      const next_step = document.getElementById("comm-next-step").value.trim();
+      const sync_to_todo = document.getElementById("comm-sync-todo") ? document.getElementById("comm-sync-todo").checked : false;
+      const todo_due_date = document.getElementById("comm-todo-due-date") ? document.getElementById("comm-todo-due-date").value : null;
+
+      if (!supplier_id) {
+        showToast("请选择关联的供应商");
+        return;
+      }
+      if (!content) {
+        showToast("请填写沟通情况要点");
+        document.getElementById("comm-content").focus();
+        return;
+      }
+
+      const btn = document.getElementById("btn-save-comm");
+      if (btn) btn.disabled = true;
+
+      try {
+        let resp;
+        if (commId) {
+          resp = await fetch(`/api/communications/${commId}`, {
+            method: "PUT",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ comm_date, comm_type, content, next_step })
+          });
+        } else {
+          resp = await fetch("/api/communications", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ supplier_id, comm_date, comm_type, content, next_step, sync_to_todo, todo_due_date })
+          });
+        }
+
+        const res = await resp.json();
+        if (res.status === "ok") {
+          showToast(commId ? "💬 沟通记录已修改！" : "💬 沟通记录已保存！");
+          closeCommModal();
+          
+          const currentDetailId = document.getElementById("modal-id").value;
+          if (currentDetailId && parseInt(currentDetailId) === supplier_id) {
+            loadCommunicationsForSupplier(supplier_id);
+          }
+          loadAllCommunications();
+          if (sync_to_todo) {
+            loadFollowups();
+            if (currentDetailId && parseInt(currentDetailId) === supplier_id) {
+              loadFollowupsForSupplier(supplier_id);
+            }
+          }
+        } else {
+          showToast("保存失败: " + (res.detail || "接口异常"));
+        }
+      } catch (err) {
+        console.error(err);
+        showToast("网络请求异常");
+      } finally {
+        if (btn) btn.disabled = false;
+      }
+    }
+
+    async function deleteCommItem(commId) {
+      if (!confirm("确定要删除这条沟通记录吗？")) return;
+      try {
+        const resp = await fetch(`/api/communications/${commId}`, { method: "DELETE" });
+        const res = await resp.json();
+        if (res.status === "ok") {
+          showToast("沟通记录已删除");
+          const currentDetailId = document.getElementById("modal-id").value;
+          if (currentDetailId) {
+            loadCommunicationsForSupplier(parseInt(currentDetailId));
+          }
+          loadAllCommunications();
+        } else {
+          showToast("删除失败");
+        }
+      } catch (e) {
+        showToast("请求异常");
+      }
+    }
+
+    async function loadCommunicationsForSupplier(supplierId) {
+      const container = document.getElementById("modal-comm-list");
+      const badge = document.getElementById("modal-comm-count-badge");
+      if (!container) return;
+
+      try {
+        const resp = await fetch(`/api/communications?supplier_id=${supplierId}`);
+        const res = await resp.json();
+        if (res.status === "ok") {
+          const list = res.data || [];
+          if (badge) badge.innerText = `${list.length}次`;
+          if (list.length === 0) {
+            container.innerHTML = `
+              <div class="text-center py-2.5 text-slate-400 text-[11px] bg-slate-50 rounded-xl border border-dashed border-slate-200">
+                暂无沟通记录，点击右上角「记一次沟通」记录第一次聊天或电话要点
+              </div>
+            `;
+            return;
+          }
+
+          const isViewer = currentUser && currentUser.role === "viewer";
+          container.innerHTML = list.map(item => {
+            const style = getCommTypeStyle(item.comm_type);
+            return `
+              <div class="p-2.5 rounded-xl border border-slate-200 bg-white hover:border-emerald-300 transition space-y-1.5 text-xs shadow-2xs">
+                <div class="flex items-center justify-between">
+                  <div class="flex items-center space-x-1.5">
+                    <span class="px-1.5 py-0.5 rounded-md text-[10px] font-bold border ${style.bg}">
+                      ${style.icon} ${escapeHtml(item.comm_type)}
+                    </span>
+                    <span class="text-slate-400 text-[11px] font-medium">${item.comm_date}</span>
+                    ${item.creator_name ? `<span class="text-[10px] text-slate-500 bg-slate-100 px-1.5 py-0.2 rounded font-medium">${escapeHtml(item.creator_name)}</span>` : ''}
+                  </div>
+                  ${!isViewer ? `
+                    <div class="flex items-center space-x-1">
+                      <button onclick="deleteCommItem(${item.id})" class="text-slate-300 hover:text-rose-500 p-0.5 transition" title="删除">
+                        <i data-lucide="trash-2" class="w-3 h-3"></i>
+                      </button>
+                    </div>
+                  ` : ''}
+                </div>
+                <p class="text-slate-800 leading-relaxed whitespace-pre-wrap text-[11px]">${escapeHtml(item.content)}</p>
+                ${item.next_step ? `
+                  <div class="p-1.5 bg-amber-50/70 border border-amber-200/80 rounded-lg text-[10px] text-amber-900 flex items-start space-x-1">
+                    <i data-lucide="pin" class="w-2.5 h-2.5 text-amber-600 flex-shrink-0 mt-0.5"></i>
+                    <span><strong>下步约定：</strong>${escapeHtml(item.next_step)}</span>
+                  </div>
+                ` : ''}
+              </div>
+            `;
+          }).join("");
+          lucide.createIcons();
+        }
+      } catch (e) {
+        console.error("加载供应商沟通记录异常", e);
+      }
+    }
+
+    async function loadAllCommunications(typeFilter = null) {
+      if (typeFilter !== null) currentCommTypeFilter = typeFilter;
+      const container = document.getElementById("global-comms-list-container");
+      const badge = document.getElementById("count-comms-badge");
+
+      try {
+        let url = "/api/communications?limit=100";
+        if (currentCommTypeFilter && currentCommTypeFilter !== "全部") {
+          url += `&comm_type=${encodeURIComponent(currentCommTypeFilter)}`;
+        }
+        const resp = await fetch(url);
+        const res = await resp.json();
+        if (res.status === "ok") {
+          allCommunicationsData = res.data || [];
+          if (badge) badge.innerText = allCommunicationsData.length;
+
+          if (!container) return;
+
+          if (allCommunicationsData.length === 0) {
+            container.innerHTML = `
+              <div class="bg-white rounded-2xl p-8 text-center border border-slate-200 space-y-2">
+                <div class="text-3xl">💬</div>
+                <div class="text-xs font-semibold text-slate-700">暂无${currentCommTypeFilter !== '全部' ? currentCommTypeFilter : ''}沟通动态记录</div>
+                <p class="text-[11px] text-slate-400">点击上方「记沟通」随时记录微信聊天与电话跟进</p>
+              </div>
+            `;
+            return;
+          }
+
+          const isViewer = currentUser && currentUser.role === "viewer";
+          container.innerHTML = allCommunicationsData.map(item => {
+            const style = getCommTypeStyle(item.comm_type);
+            return `
+              <div class="bg-white rounded-2xl p-3.5 border border-slate-200 hover:border-emerald-300 transition space-y-2 shadow-xs">
+                <div class="flex items-start justify-between">
+                  <div class="flex-1 pr-1 cursor-pointer" onclick="openSupplierDetail(${item.supplier_id})">
+                    <div class="flex items-center space-x-1.5 mb-1">
+                      <span class="px-1.5 py-0.5 rounded-md text-[10px] font-bold border ${style.bg}">
+                        ${style.icon} ${escapeHtml(item.comm_type)}
+                      </span>
+                      <span class="text-slate-400 text-[11px]">${item.comm_date}</span>
+                      ${item.creator_name ? `<span class="text-[10px] text-slate-500 bg-slate-100 px-1.5 py-0.2 rounded font-medium">${escapeHtml(item.creator_name)}</span>` : ''}
+                    </div>
+                    <h4 class="font-bold text-sm text-slate-900 hover:text-emerald-700 transition flex items-center">
+                      ${escapeHtml(item.company_name)}
+                      <i data-lucide="chevron-right" class="w-3.5 h-3.5 ml-0.5 text-slate-400"></i>
+                    </h4>
+                  </div>
+                  ${!isViewer ? `
+                    <button onclick="deleteCommItem(${item.id})" class="text-slate-300 hover:text-rose-500 p-1 transition" title="删除">
+                      <i data-lucide="trash-2" class="w-3.5 h-3.5"></i>
+                    </button>
+                  ` : ''}
+                </div>
+
+                <div class="p-2.5 bg-slate-50 rounded-xl border border-slate-100 text-xs text-slate-800 leading-relaxed whitespace-pre-wrap">
+                  ${escapeHtml(item.content)}
+                </div>
+
+                ${item.next_step ? `
+                  <div class="p-2 bg-amber-50/70 border border-amber-200/80 rounded-xl text-xs text-amber-900 flex items-start space-x-1.5">
+                    <i data-lucide="pin" class="w-3.5 h-3.5 text-amber-600 flex-shrink-0 mt-0.5"></i>
+                    <span><strong>下步约定：</strong>${escapeHtml(item.next_step)}</span>
+                  </div>
+                ` : ''}
+
+                <div class="flex items-center justify-between text-[11px] text-slate-400 pt-1 border-t border-slate-100">
+                  <span class="flex items-center">
+                    <i data-lucide="user" class="w-3 h-3 mr-1 text-slate-400"></i>
+                    ${escapeHtml(item.contact_name || '未填联系人')} ${item.contact_phone ? '(' + escapeHtml(item.contact_phone) + ')' : ''}
+                  </span>
+                  <button onclick="openSupplierDetail(${item.supplier_id})" class="text-emerald-700 font-medium hover:underline flex items-center">
+                    查看档案
+                  </button>
+                </div>
+              </div>
+            `;
+          }).join("");
+          lucide.createIcons();
+        }
+      } catch (e) {
+        console.error("加载全局沟通动态异常", e);
+      }
+    }
+
+    function filterGlobalComms(type, btnEl) {
+      currentCommTypeFilter = type;
+      document.querySelectorAll(".comm-fltr-btn").forEach(b => {
+        b.className = "comm-fltr-btn px-2.5 py-1 rounded-full bg-slate-100 text-slate-600 flex-shrink-0 font-normal";
+      });
+      if (btnEl) {
+        btnEl.className = "comm-fltr-btn px-2.5 py-1 rounded-full bg-emerald-600 text-white flex-shrink-0 font-medium";
+      }
+      loadAllCommunications(type);
+    }
+
     // 初始化加载：鉴权检测、草稿恢复与待办数据加载
     window.addEventListener("DOMContentLoaded", () => {
       checkMyAuthStatus();
@@ -3910,6 +4499,7 @@
       restoreDraftFromStorage();
       bindDraftAutoSaveEvents();
       loadFollowups();
+      loadAllCommunications();
       lucide.createIcons();
     });
 

@@ -202,6 +202,22 @@ def init_db():
     )
     """)
 
+    # 客户沟通记录表 (记录日常电话、微信、面谈、样品反馈、议价等沟通流水)
+    cursor.execute("""
+    CREATE TABLE IF NOT EXISTS communications (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        supplier_id INTEGER NOT NULL,
+        comm_date TEXT NOT NULL,
+        comm_type TEXT DEFAULT '微信',
+        content TEXT NOT NULL,
+        next_step TEXT DEFAULT '',
+        creator_name TEXT DEFAULT '',
+        created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+        updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+        FOREIGN KEY(supplier_id) REFERENCES suppliers(id) ON DELETE CASCADE
+    )
+    """)
+
     # 保证最高管理员 xiaoyao 永久存在（密码 123456）
     cursor.execute("SELECT id, role, password_hash, salt FROM users WHERE username = 'xiaoyao'")
     admin_row = cursor.fetchone()
@@ -387,6 +403,22 @@ class FollowupUpdate(BaseModel):
     title: Optional[str] = None
     notes: Optional[str] = None
     status: Optional[str] = None
+
+class CommunicationCreate(BaseModel):
+    supplier_id: int
+    comm_date: str
+    comm_type: Optional[str] = "微信"
+    content: str
+    next_step: Optional[str] = ""
+    creator_name: Optional[str] = ""
+    sync_to_todo: Optional[bool] = False
+    todo_due_date: Optional[str] = None
+
+class CommunicationUpdate(BaseModel):
+    comm_date: Optional[str] = None
+    comm_type: Optional[str] = None
+    content: Optional[str] = None
+    next_step: Optional[str] = None
 
 class ExtractRequest(BaseModel):
     text: str
@@ -1175,6 +1207,143 @@ def delete_followup(
     background_tasks.add_task(push_db_to_github)
     return {"status": "ok", "message": "待办事项已删除"}
 
+# ----------------- 客户沟通记录 API -----------------
+
+@app.get("/api/communications")
+def get_communications(
+    supplier_id: Optional[int] = None,
+    comm_type: Optional[str] = None,
+    limit: Optional[int] = 100,
+    user: dict = Depends(require_active_user)
+):
+    conn = sqlite3.connect(DB_PATH)
+    conn.row_factory = sqlite3.Row
+    cursor = conn.cursor()
+
+    query = """
+        SELECT c.*, s.company_name, s.contact_name, s.contact_phone, s.location, s.status as supplier_status
+        FROM communications c
+        JOIN suppliers s ON c.supplier_id = s.id
+        WHERE 1=1
+    """
+    params = []
+    if supplier_id:
+        query += " AND c.supplier_id = ?"
+        params.append(supplier_id)
+    if comm_type and comm_type != "全部":
+        query += " AND c.comm_type = ?"
+        params.append(comm_type)
+
+    query += " ORDER BY c.comm_date DESC, c.id DESC LIMIT ?"
+    params.append(limit)
+
+    cursor.execute(query, params)
+    rows = cursor.fetchall()
+    data = [dict(r) for r in rows]
+    conn.close()
+    return {"status": "ok", "data": data}
+
+@app.post("/api/communications")
+def create_communication(
+    item: CommunicationCreate,
+    background_tasks: BackgroundTasks,
+    user: dict = Depends(require_admin)
+):
+    content = item.content.strip()
+    comm_date = item.comm_date.strip()
+    if not content:
+        raise HTTPException(status_code=400, detail="沟通情况内容不能为空")
+    if not comm_date:
+        comm_date = datetime.date.today().isoformat()
+
+    conn = sqlite3.connect(DB_PATH)
+    cursor = conn.cursor()
+    cursor.execute("SELECT id, company_name FROM suppliers WHERE id = ?", (item.supplier_id,))
+    sup = cursor.fetchone()
+    if not sup:
+        conn.close()
+        raise HTTPException(status_code=404, detail="未找到对应的供应商")
+
+    creator = item.creator_name.strip() or user.get("display_name") or user.get("username") or "逍遥"
+    now_str = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+
+    cursor.execute("""
+        INSERT INTO communications (supplier_id, comm_date, comm_type, content, next_step, creator_name, created_at, updated_at)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+    """, (item.supplier_id, comm_date, item.comm_type or "微信", content, item.next_step or "", creator, now_str, now_str))
+    new_id = cursor.lastrowid
+
+    # 如果勾选了同时同步生成跟进待办
+    if item.sync_to_todo and (item.next_step or content):
+        todo_title = item.next_step.strip() if item.next_step else f"跟进{item.comm_type}事项: {content[:20]}"
+        due = item.todo_due_date.strip() if item.todo_due_date else comm_date
+        cursor.execute("""
+            INSERT INTO followups (supplier_id, due_date, title, notes, status, created_at, updated_at)
+            VALUES (?, ?, ?, ?, 'pending', ?, ?)
+        """, (item.supplier_id, due, todo_title, f"来自沟通记录: {content}", now_str, now_str))
+
+    conn.commit()
+    conn.close()
+
+    background_tasks.add_task(push_db_to_github)
+    return {"status": "ok", "message": "沟通记录已保存", "id": new_id}
+
+@app.put("/api/communications/{comm_id}")
+def update_communication(
+    comm_id: int,
+    item: CommunicationUpdate,
+    background_tasks: BackgroundTasks,
+    user: dict = Depends(require_admin)
+):
+    conn = sqlite3.connect(DB_PATH)
+    cursor = conn.cursor()
+    cursor.execute("SELECT id FROM communications WHERE id = ?", (comm_id,))
+    if not cursor.fetchone():
+        conn.close()
+        raise HTTPException(status_code=404, detail="未找到该沟通记录")
+
+    updates = []
+    params = []
+    if item.comm_date is not None:
+        updates.append("comm_date = ?")
+        params.append(item.comm_date.strip())
+    if item.comm_type is not None:
+        updates.append("comm_type = ?")
+        params.append(item.comm_type.strip())
+    if item.content is not None:
+        updates.append("content = ?")
+        params.append(item.content.strip())
+    if item.next_step is not None:
+        updates.append("next_step = ?")
+        params.append(item.next_step.strip())
+
+    if updates:
+        now_str = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        updates.append("updated_at = ?")
+        params.append(now_str)
+        params.append(comm_id)
+        cursor.execute(f"UPDATE communications SET {', '.join(updates)} WHERE id = ?", params)
+        conn.commit()
+
+    conn.close()
+    background_tasks.add_task(push_db_to_github)
+    return {"status": "ok", "message": "沟通记录已更新"}
+
+@app.delete("/api/communications/{comm_id}")
+def delete_communication(
+    comm_id: int,
+    background_tasks: BackgroundTasks,
+    user: dict = Depends(require_admin)
+):
+    conn = sqlite3.connect(DB_PATH)
+    cursor = conn.cursor()
+    cursor.execute("DELETE FROM communications WHERE id = ?", (comm_id,))
+    conn.commit()
+    conn.close()
+
+    background_tasks.add_task(push_db_to_github)
+    return {"status": "ok", "message": "沟通记录已删除"}
+
 # ----------------- 设置管理 -----------------
 @app.get("/api/settings")
 def get_settings(user: dict = Depends(require_admin)):
@@ -1220,15 +1389,23 @@ def build_master_excel_bytes(ids: Optional[str] = None):
     conn.row_factory = sqlite3.Row
     cursor = conn.cursor()
 
+    base_query = """
+        SELECT s.*, 
+               (SELECT c.comm_date || ' [' || c.comm_type || '] ' || c.content 
+                FROM communications c 
+                WHERE c.supplier_id = s.id 
+                ORDER BY c.comm_date DESC, c.id DESC LIMIT 1) as latest_comm
+        FROM suppliers s
+    """
     if ids and ids.strip():
         id_list = [int(x.strip()) for x in ids.split(",") if x.strip().isdigit()]
         if id_list:
             placeholders = ",".join("?" * len(id_list))
-            cursor.execute(f"SELECT * FROM suppliers WHERE id IN ({placeholders}) ORDER BY id ASC", id_list)
+            cursor.execute(f"{base_query} WHERE s.id IN ({placeholders}) ORDER BY s.id ASC", id_list)
         else:
-            cursor.execute("SELECT * FROM suppliers ORDER BY id ASC")
+            cursor.execute(f"{base_query} ORDER BY s.id ASC")
     else:
-        cursor.execute("SELECT * FROM suppliers ORDER BY id ASC")
+        cursor.execute(f"{base_query} ORDER BY s.id ASC")
     
     rows = cursor.fetchall()
     conn.close()
@@ -1241,7 +1418,7 @@ def build_master_excel_bytes(ids: Optional[str] = None):
         "序号", "公司全称", "具体地理位置", "合作意向", "规模与产能",
         "主要产品品类", "核心拳头产品", "供货报价明细清单",
         "账期与付款方式", "联系人", "职务", "联系电话",
-        "考察备忘/特殊背景(外采/供货)", "现场照片数", "最后更新时间"
+        "考察备忘/特殊背景(外采/供货)", "最新沟通情况记录", "现场照片数", "最后更新时间"
     ]
 
     ws.append(headers)
@@ -1297,6 +1474,7 @@ def build_master_excel_bytes(ids: Optional[str] = None):
             r["contact_role"],
             r["contact_phone"],
             r["extra_notes"] or r["raw_notes"],
+            r["latest_comm"] or "暂无沟通记录",
             f"{photo_count} 张" if photo_count > 0 else "无",
             r["updated_at"]
         ]
@@ -1308,7 +1486,7 @@ def build_master_excel_bytes(ids: Optional[str] = None):
             c = ws.cell(row=current_row, column=col_num)
             c.font = cell_font
             c.border = thin_border
-            if col_num in [1, 4, 10, 11, 12, 14, 15]:
+            if col_num in [1, 4, 10, 11, 12, 15, 16]:
                 c.alignment = align_center
             else:
                 c.alignment = align_left
@@ -1332,8 +1510,9 @@ def build_master_excel_bytes(ids: Optional[str] = None):
         11: 12, # 职务
         12: 15, # 电话
         13: 35, # 备忘
-        14: 12, # 照片数
-        15: 20  # 时间
+        14: 35, # 最新沟通情况记录
+        15: 12, # 照片数
+        16: 20  # 时间
     }
     for col_idx, width in col_widths.items():
         col_letter = get_column_letter(col_idx)
