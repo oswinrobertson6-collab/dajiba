@@ -81,6 +81,17 @@
     <!-- ================= 页面 1: 智能碎片录入 ================= -->
     <section id="tab-record" class="tab-page space-y-4">
       
+      <!-- 草稿箱自动恢复提示条 (初始隐藏) -->
+      <div id="draft-alert-banner" class="hidden bg-amber-50 border border-amber-200 rounded-xl p-2.5 text-xs text-amber-900 flex items-center justify-between animate-in fade-in">
+        <div class="flex items-center space-x-1.5">
+          <i data-lucide="history" class="w-4 h-4 text-amber-600 flex-shrink-0"></i>
+          <span>已自动恢复上次编辑的未保存草稿</span>
+        </div>
+        <button type="button" onclick="clearDraftAndReset()" class="text-[10px] font-semibold text-amber-800 bg-amber-100 hover:bg-amber-200 px-2 py-0.5 rounded-md border border-amber-300">
+          清空草稿
+        </button>
+      </div>
+
       <!-- 提示条 -->
       <div class="bg-emerald-50 border border-emerald-200 rounded-xl p-3 text-xs text-emerald-900 flex items-start space-x-2">
         <i data-lucide="sparkles" class="w-4 h-4 text-emerald-600 flex-shrink-0 mt-0.5"></i>
@@ -104,7 +115,7 @@
           rows="5" 
           placeholder="例：今天跑了威海荣成的一家果业合作社，李总13863128910，他们有1000多亩波姬红鲜果基地，主要做鲜果和烘干片，冻干片吨价4.5万，首单要全款后面月结30天。厂里设备很新，合作意愿很高..."
           class="w-full text-sm p-3 border border-slate-200 rounded-xl focus:ring-2 focus:ring-emerald-500 focus:border-transparent outline-none transition bg-slate-50"
-          oninput="updateCharCount()"
+          oninput="updateCharCount(); scheduleSaveDraft();"
         ></textarea>
 
         <!-- 快捷示例胶囊按钮 -->
@@ -235,14 +246,45 @@
               </label>
             </div>
           </div>
+
+          <!-- 保存目标分类选择 (已考察 vs 待拜访) -->
+          <div class="border-t border-slate-100 pt-3 space-y-2">
+            <label class="block font-semibold text-slate-700 text-xs">📌 档案保存分类 *</label>
+            <div class="grid grid-cols-2 gap-2 p-1 bg-slate-100 rounded-xl">
+              <button type="button" id="record-target-visited" onclick="setRecordTargetStatus('visited')" class="py-2.5 px-3 rounded-lg text-xs font-bold transition flex items-center justify-center space-x-1.5 bg-white text-emerald-700 shadow-xs border border-emerald-200">
+                <i data-lucide="check-check" class="w-3.5 h-3.5 text-emerald-600"></i>
+                <span>已考察档案 (正式库)</span>
+              </button>
+              <button type="button" id="record-target-planned" onclick="setRecordTargetStatus('planned')" class="py-2.5 px-3 rounded-lg text-xs font-semibold text-slate-600 hover:text-slate-800 transition flex items-center justify-center space-x-1.5">
+                <i data-lucide="calendar" class="w-3.5 h-3.5 text-amber-500"></i>
+                <span>待拜访行程 (提前规划)</span>
+              </button>
+            </div>
+
+            <!-- 如果选择待拜访，可选计划拜访时间 -->
+            <div id="record-plan-date-box" class="hidden p-2.5 bg-amber-50/70 border border-amber-200 rounded-xl space-y-2 animate-in fade-in duration-200">
+              <div class="flex items-center justify-between">
+                <label class="text-[11px] font-semibold text-amber-900 flex items-center">
+                  <i data-lucide="calendar-clock" class="w-3 h-3 mr-1 text-amber-600"></i>
+                  计划拜访日期 (选填)
+                </label>
+                <div class="flex space-x-1">
+                  <button type="button" onclick="setRecordQuickDate(0)" class="text-[10px] px-1.5 py-0.5 bg-white text-amber-800 rounded border border-amber-300">今天</button>
+                  <button type="button" onclick="setRecordQuickDate(1)" class="text-[10px] px-1.5 py-0.5 bg-white text-amber-800 rounded border border-amber-300">明天</button>
+                  <button type="button" onclick="setRecordQuickDate(3)" class="text-[10px] px-1.5 py-0.5 bg-white text-amber-800 rounded border border-amber-300">3天后</button>
+                </div>
+              </div>
+              <input type="date" id="field-plan-date" onchange="scheduleSaveDraft()" class="w-full p-2 text-xs bg-white border border-amber-200 rounded-lg outline-none text-slate-800">
+            </div>
+          </div>
         </div>
 
         <div class="pt-2 flex space-x-2">
-          <button onclick="handleSaveSupplier()" class="flex-1 py-3 bg-emerald-600 hover:bg-emerald-700 active:bg-emerald-800 text-white font-medium rounded-xl flex items-center justify-center space-x-1 shadow-sm shadow-emerald-200">
+          <button id="btn-save-record" onclick="handleSaveSupplier()" class="flex-1 py-3 bg-emerald-600 hover:bg-emerald-700 active:bg-emerald-800 text-white font-medium rounded-xl flex items-center justify-center space-x-1.5 shadow-sm shadow-emerald-200 transition">
             <i data-lucide="archive" class="w-4 h-4"></i>
-            <span>确认无误，保存入库</span>
+            <span id="btn-save-record-text">确认无误，保存为已考察档案</span>
           </button>
-          <button onclick="resetExtractForm()" class="px-4 py-3 bg-slate-100 hover:bg-slate-200 text-slate-600 rounded-xl">
+          <button onclick="resetExtractForm()" class="px-4 py-3 bg-slate-100 hover:bg-slate-200 text-slate-600 rounded-xl text-xs font-medium">
             重置
           </button>
         </div>
@@ -305,7 +347,98 @@
       </div>
     </section>
 
-    <!-- ================= 页面 3: 汇总与导出 ================= -->
+    <!-- ================= 页面 3: 商务跟进与日程待办 ================= -->
+    <section id="tab-calendar" class="tab-page space-y-3.5 hidden">
+      <!-- 顶部标题与新建按钮 -->
+      <div class="flex items-center justify-between">
+        <div>
+          <h2 class="text-sm font-bold text-slate-800 flex items-center">
+            <i data-lucide="calendar-check-2" class="w-4 h-4 text-emerald-600 mr-1.5"></i>
+            商务跟进待办
+          </h2>
+          <p class="text-[11px] text-slate-400">已拜访客户样品测试、回访与签约进度</p>
+        </div>
+        <button id="btn-add-followup" onclick="openFollowupModal()" class="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 active:bg-emerald-800 text-white rounded-xl text-xs font-semibold flex items-center shadow-xs transition">
+          <i data-lucide="plus" class="w-3.5 h-3.5 mr-1"></i>新建待办
+        </button>
+      </div>
+
+      <!-- 待办指标快速切换胶囊 -->
+      <div class="grid grid-cols-3 gap-2 text-center text-xs">
+        <div onclick="filterFollowupList('today')" id="card-stat-today" class="bg-white p-2.5 rounded-2xl border border-slate-200 shadow-2xs cursor-pointer hover:border-amber-400 transition">
+          <span class="block text-[10px] text-slate-400 mb-0.5">🔥 今日待办</span>
+          <span id="stat-followup-today" class="text-lg font-black text-amber-600">0</span>
+        </div>
+        <div onclick="filterFollowupList('overdue')" id="card-stat-overdue" class="bg-white p-2.5 rounded-2xl border border-slate-200 shadow-2xs cursor-pointer hover:border-red-400 transition">
+          <span class="block text-[10px] text-slate-400 mb-0.5">⚠️ 逾期待办</span>
+          <span id="stat-followup-overdue" class="text-lg font-black text-rose-600">0</span>
+        </div>
+        <div onclick="filterFollowupList('all_pending')" id="card-stat-pending" class="bg-white p-2.5 rounded-2xl border border-slate-200 shadow-2xs cursor-pointer hover:border-emerald-400 transition">
+          <span class="block text-[10px] text-slate-400 mb-0.5">⚡ 待处理总数</span>
+          <span id="stat-followup-pending" class="text-lg font-black text-emerald-600">0</span>
+        </div>
+      </div>
+
+      <!-- 月历交互卡片 -->
+      <div class="bg-white rounded-2xl p-3.5 border border-slate-200 shadow-xs space-y-3">
+        <!-- 月历标题与月份翻页 -->
+        <div class="flex items-center justify-between border-b border-slate-100 pb-2.5">
+          <div class="flex items-center space-x-2">
+            <span id="calendar-month-title" class="font-extrabold text-sm text-slate-800">2026年11月</span>
+            <button onclick="goToCurrentMonth()" class="text-[10px] px-2 py-0.5 bg-slate-100 hover:bg-slate-200 text-slate-600 rounded-md font-medium transition">回到本月</button>
+          </div>
+          <div class="flex items-center space-x-1">
+            <button onclick="changeMonth(-1)" class="p-1 hover:bg-slate-100 rounded-lg text-slate-600 transition">
+              <i data-lucide="chevron-left" class="w-4 h-4"></i>
+            </button>
+            <button onclick="changeMonth(1)" class="p-1 hover:bg-slate-100 rounded-lg text-slate-600 transition">
+              <i data-lucide="chevron-right" class="w-4 h-4"></i>
+            </button>
+          </div>
+        </div>
+
+        <!-- 星期表头 -->
+        <div class="grid grid-cols-7 text-center text-[11px] font-bold text-slate-400">
+          <div>一</div><div>二</div><div>三</div><div>四</div><div>五</div><div class="text-amber-600 font-extrabold">六</div><div class="text-amber-600 font-extrabold">日</div>
+        </div>
+
+        <!-- 日历单元格网格 (JS 动态渲染 35 或 42 格) -->
+        <div id="calendar-days-grid" class="grid grid-cols-7 gap-1 text-center text-xs">
+          <!-- 动态注入天数单元格 -->
+        </div>
+
+        <!-- 图例说明 -->
+        <div class="flex items-center justify-center space-x-3 text-[10px] text-slate-400 pt-1.5 border-t border-slate-100">
+          <span class="flex items-center"><span class="w-2 h-2 rounded-full bg-rose-500 mr-1"></span>逾期</span>
+          <span class="flex items-center"><span class="w-2 h-2 rounded-full bg-amber-500 mr-1"></span>今日</span>
+          <span class="flex items-center"><span class="w-2 h-2 rounded-full bg-emerald-500 mr-1"></span>待办</span>
+          <span class="flex items-center"><span class="w-2 h-2 rounded-full bg-slate-300 mr-1"></span>已完结</span>
+        </div>
+      </div>
+
+      <!-- 待办事项列表区 -->
+      <div class="space-y-2">
+        <div class="flex items-center justify-between px-1">
+          <div class="flex items-center space-x-1.5">
+            <span id="followup-list-title" class="font-bold text-xs text-slate-700">全部待办清单</span>
+            <span id="followup-list-count" class="text-[10px] bg-slate-100 text-slate-600 px-1.5 py-0.2 rounded-full font-bold">0</span>
+          </div>
+          <!-- 状态过滤小按钮 -->
+          <div class="flex items-center space-x-1 text-[11px]">
+            <button onclick="filterFollowupList('all_pending')" id="btn-fltr-pending" class="px-2 py-0.5 rounded-md font-semibold bg-emerald-100 text-emerald-800 transition">待办</button>
+            <button onclick="filterFollowupList('completed')" id="btn-fltr-completed" class="px-2 py-0.5 rounded-md text-slate-500 hover:text-slate-800 transition">已完成</button>
+            <button onclick="filterFollowupList('all')" id="btn-fltr-all" class="px-2 py-0.5 rounded-md text-slate-500 hover:text-slate-800 transition">全部</button>
+          </div>
+        </div>
+
+        <!-- 待办卡片容器 -->
+        <div id="followup-list-container" class="space-y-2">
+          <!-- 动态加载 -->
+        </div>
+      </div>
+    </section>
+
+    <!-- ================= 页面 4: 汇总与导出 ================= -->
     <section id="tab-export" class="tab-page space-y-4 hidden">
       <!-- 统计指标面板 -->
       <div class="grid grid-cols-3 gap-2 text-center">
@@ -548,25 +681,31 @@
 
   <!-- 底部固定导航栏 (Native Mobile Nav) -->
   <nav class="fixed bottom-0 left-0 right-0 bg-white/95 backdrop-blur-md border-t border-slate-200 z-30 pb-safe">
-    <div class="max-w-md mx-auto grid grid-cols-4 py-2 px-1 text-center">
+    <div id="bottom-nav-grid" class="max-w-md mx-auto grid grid-cols-5 py-2 px-0.5 text-center">
       <button onclick="switchTab('tab-record')" id="nav-btn-record" class="nav-item flex flex-col items-center text-emerald-700 transition">
         <i data-lucide="wand-2" class="w-5 h-5 mb-0.5"></i>
-        <span class="text-[11px] font-semibold">碎片录入</span>
+        <span class="text-[10px] font-semibold">碎片录入</span>
       </button>
 
       <button onclick="switchTab('tab-list')" id="nav-btn-list" class="nav-item flex flex-col items-center text-slate-400 hover:text-slate-600 transition">
         <i data-lucide="building-2" class="w-5 h-5 mb-0.5"></i>
-        <span class="text-[11px] font-medium">供应商库</span>
+        <span class="text-[10px] font-medium">供应商库</span>
+      </button>
+
+      <button onclick="switchTab('tab-calendar')" id="nav-btn-calendar" class="nav-item flex flex-col items-center text-slate-400 hover:text-slate-600 transition relative">
+        <i data-lucide="calendar-days" class="w-5 h-5 mb-0.5"></i>
+        <span class="text-[10px] font-medium">跟进日程</span>
+        <span id="nav-badge-calendar" class="hidden absolute top-0.5 right-2 w-2 h-2 rounded-full bg-red-500 animate-ping"></span>
       </button>
 
       <button onclick="switchTab('tab-export')" id="nav-btn-export" class="nav-item flex flex-col items-center text-slate-400 hover:text-slate-600 transition">
         <i data-lucide="bar-chart-3" class="w-5 h-5 mb-0.5"></i>
-        <span class="text-[11px] font-medium">统计导出</span>
+        <span class="text-[10px] font-medium">统计导出</span>
       </button>
 
       <button onclick="switchTab('tab-settings')" id="nav-btn-settings" class="nav-item flex flex-col items-center text-slate-400 hover:text-slate-600 transition">
         <i data-lucide="settings-2" class="w-5 h-5 mb-0.5"></i>
-        <span class="text-[11px] font-medium">引擎设置</span>
+        <span class="text-[10px] font-medium">引擎设置</span>
       </button>
     </div>
   </nav>
@@ -657,6 +796,22 @@
           </label>
           <div id="modal-photo-grid" class="grid grid-cols-3 gap-2">
             <!-- 动态渲染照片与追加按钮 -->
+          </div>
+        </div>
+
+        <!-- 商务跟进与待办事项专区 -->
+        <div class="border-t border-slate-100 pt-2.5 space-y-2">
+          <div class="flex items-center justify-between">
+            <label class="font-semibold text-slate-700 flex items-center text-xs">
+              <i data-lucide="calendar-check" class="w-4 h-4 mr-1 text-emerald-600"></i>
+              商务跟进待办
+            </label>
+            <button type="button" onclick="openAddFollowupForCurrentSupplier()" class="text-[11px] text-emerald-700 bg-emerald-50 hover:bg-emerald-100 px-2 py-0.5 rounded-lg flex items-center border border-emerald-300 font-semibold transition">
+              <i data-lucide="plus" class="w-3 h-3 mr-0.5"></i>新增待办
+            </button>
+          </div>
+          <div id="modal-followup-list" class="space-y-1.5">
+            <!-- 动态渲染该供应商的待办 -->
           </div>
         </div>
 
@@ -771,6 +926,73 @@
           <span id="plan-btn-text">保存待拜访行程</span>
         </button>
         <button onclick="closePlanModal()" class="px-4 py-3 bg-slate-100 hover:bg-slate-200 text-slate-600 rounded-xl text-xs">
+          取消
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ================= 新增商务跟进待办弹窗 (Followup Modal) ================= -->
+  <div id="followup-modal" class="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-end sm:items-center justify-center hidden p-0 sm:p-4">
+    <div class="bg-white w-full max-w-md rounded-t-3xl sm:rounded-2xl p-5 space-y-3.5 shadow-2xl animate-in slide-in-from-bottom duration-200">
+      <div class="flex items-center justify-between border-b pb-2.5">
+        <div class="flex items-center space-x-2">
+          <span class="text-xl">📅</span>
+          <div>
+            <h3 class="font-bold text-sm text-slate-800">新建商务跟进待办</h3>
+            <p class="text-[11px] text-slate-400">设置样品测试、价格复议或签约回访提醒</p>
+          </div>
+        </div>
+        <button onclick="closeFollowupModal()" class="w-7 h-7 rounded-full bg-slate-100 hover:bg-slate-200 flex items-center justify-center text-slate-500 transition">✕</button>
+      </div>
+
+      <div class="space-y-3 text-xs">
+        <div>
+          <label class="block font-semibold text-slate-700 mb-1">🏢 关联已拜访供应商 *</label>
+          <select id="followup-supplier-id" class="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl outline-none font-bold text-slate-800 focus:bg-white focus:border-emerald-500">
+            <!-- 动态填充已拜访供应商列表 -->
+          </select>
+        </div>
+
+        <div>
+          <div class="flex items-center justify-between mb-1">
+            <label class="block font-semibold text-slate-700">📅 跟进待办日期 *</label>
+            <div class="flex space-x-1">
+              <button type="button" onclick="setFollowupQuickDate(0)" class="text-[10px] px-1.5 py-0.5 bg-slate-100 hover:bg-slate-200 text-slate-600 rounded">今天</button>
+              <button type="button" onclick="setFollowupQuickDate(1)" class="text-[10px] px-1.5 py-0.5 bg-slate-100 hover:bg-slate-200 text-slate-600 rounded">明天</button>
+              <button type="button" onclick="setFollowupQuickDate(3)" class="text-[10px] px-1.5 py-0.5 bg-slate-100 hover:bg-slate-200 text-slate-600 rounded">3天后</button>
+              <button type="button" onclick="setFollowupQuickDate(7)" class="text-[10px] px-1.5 py-0.5 bg-slate-100 hover:bg-slate-200 text-slate-600 rounded">下周</button>
+            </div>
+          </div>
+          <input type="date" id="followup-due-date" class="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl outline-none font-medium text-slate-800 focus:bg-white focus:border-emerald-500">
+        </div>
+
+        <div>
+          <label class="block font-semibold text-slate-700 mb-1">📝 待办事项内容 *</label>
+          <input type="text" id="followup-title" placeholder="如：寄送样品化验单，电话确认首批波姬红鲜果报价" class="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl outline-none font-medium text-slate-800 focus:bg-white focus:border-emerald-500">
+          <!-- 常用待办快捷标签 -->
+          <div class="flex items-center space-x-1 overflow-x-auto no-scrollbar py-1.5">
+            <span class="text-[10px] text-slate-400 flex-shrink-0">快捷常用：</span>
+            <button type="button" onclick="fillFollowupTemplate('寄送样品化验报告单')" class="text-[10px] px-2 py-0.5 bg-slate-100 hover:bg-slate-200 text-slate-600 rounded flex-shrink-0">寄送样品</button>
+            <button type="button" onclick="fillFollowupTemplate('电话回访了解样品口感与甜度反馈')" class="text-[10px] px-2 py-0.5 bg-slate-100 hover:bg-slate-200 text-slate-600 rounded flex-shrink-0">样品回访</button>
+            <button type="button" onclick="fillFollowupTemplate('确认大宗采购阶梯供货报价')" class="text-[10px] px-2 py-0.5 bg-slate-100 hover:bg-slate-200 text-slate-600 rounded flex-shrink-0">确认报价</button>
+            <button type="button" onclick="fillFollowupTemplate('拟定并寄送意向采购合同框架')" class="text-[10px] px-2 py-0.5 bg-slate-100 hover:bg-slate-200 text-slate-600 rounded flex-shrink-0">拟定合同</button>
+            <button type="button" onclick="fillFollowupTemplate('首笔定金到账与工厂发货排单跟进')" class="text-[10px] px-2 py-0.5 bg-slate-100 hover:bg-slate-200 text-slate-600 rounded flex-shrink-0">定金排单</button>
+          </div>
+        </div>
+
+        <div>
+          <label class="block font-semibold text-slate-700 mb-1">💬 备忘说明 (选填)</label>
+          <textarea id="followup-notes" rows="2" placeholder="备注沟通要点、价格底线或老板特别交代事项" class="w-full p-2 text-xs bg-slate-50 border border-slate-200 rounded-xl outline-none focus:bg-white focus:border-emerald-500"></textarea>
+        </div>
+      </div>
+
+      <div class="pt-2 flex space-x-2">
+        <button id="btn-save-followup" onclick="handleSaveFollowup()" class="flex-1 py-2.5 bg-emerald-600 hover:bg-emerald-700 active:bg-emerald-800 text-white font-medium rounded-xl flex items-center justify-center space-x-1 shadow-sm transition">
+          <i data-lucide="check" class="w-4 h-4"></i>
+          <span>保存待办事项</span>
+        </button>
+        <button onclick="closeFollowupModal()" class="px-4 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-600 rounded-xl text-xs font-medium transition">
           取消
         </button>
       </div>
@@ -1078,7 +1300,7 @@
         navRecordBtn.classList.remove("hidden");
         navSettingsBtn.classList.remove("hidden");
         if (bottomNavGrid) {
-          bottomNavGrid.className = "max-w-md mx-auto grid grid-cols-4 py-2 px-1 text-center";
+          bottomNavGrid.className = "max-w-md mx-auto grid grid-cols-5 py-2 px-0.5 text-center";
         }
       } else if (currentUser.role === "viewer") {
         roleBadge.innerText = "👁️ 只读权限";
@@ -1088,7 +1310,7 @@
         navRecordBtn.classList.add("hidden");
         navSettingsBtn.classList.add("hidden");
         if (bottomNavGrid) {
-          bottomNavGrid.className = "max-w-md mx-auto grid grid-cols-2 py-2 px-1 text-center";
+          bottomNavGrid.className = "max-w-md mx-auto grid grid-cols-3 py-2 px-1 text-center";
         }
         // 如果当前停留在录入或设置页，自动切回供应商列表
         const activeTab = document.querySelector(".tab-page:not(.hidden)");
@@ -1769,6 +1991,8 @@
 
       if (tabId === "tab-list") {
         loadSuppliers();
+      } else if (tabId === "tab-calendar") {
+        loadFollowups();
       } else if (tabId === "tab-export") {
         updateStats();
       } else if (tabId === "tab-settings") {
@@ -1795,6 +2019,166 @@
       document.getElementById("raw-input").value = SAMPLES[id];
       updateCharCount();
       showToast("已填入拜访考察示例");
+    }
+
+    // ----------------- 草稿箱与保存分类逻辑 -----------------
+    const DRAFT_STORAGE_KEY = "fig_supplier_record_draft_v2";
+    let draftSaveTimer = null;
+    let currentRecordTargetStatus = "visited"; // 'visited' 或 'planned'
+
+    function setRecordTargetStatus(st) {
+      currentRecordTargetStatus = st;
+      const btnVisited = document.getElementById("record-target-visited");
+      const btnPlanned = document.getElementById("record-target-planned");
+      const dateBox = document.getElementById("record-plan-date-box");
+      const saveBtnText = document.getElementById("btn-save-record-text");
+
+      if (st === "visited") {
+        if (btnVisited) btnVisited.className = "py-2.5 px-3 rounded-lg text-xs font-bold transition flex items-center justify-center space-x-1.5 bg-white text-emerald-700 shadow-xs border border-emerald-200";
+        if (btnPlanned) btnPlanned.className = "py-2.5 px-3 rounded-lg text-xs font-semibold text-slate-600 hover:text-slate-800 transition flex items-center justify-center space-x-1.5";
+        if (dateBox) dateBox.classList.add("hidden");
+        if (saveBtnText) saveBtnText.innerText = "确认无误，保存为已考察档案";
+      } else {
+        if (btnPlanned) btnPlanned.className = "py-2.5 px-3 rounded-lg text-xs font-bold transition flex items-center justify-center space-x-1.5 bg-white text-amber-800 shadow-xs border border-amber-300";
+        if (btnVisited) btnVisited.className = "py-2.5 px-3 rounded-lg text-xs font-semibold text-slate-600 hover:text-slate-800 transition flex items-center justify-center space-x-1.5";
+        if (dateBox) dateBox.classList.remove("hidden");
+        if (saveBtnText) saveBtnText.innerText = "确认无误，加入待拜访行程";
+      }
+      scheduleSaveDraft();
+      lucide.createIcons();
+    }
+
+    function setRecordQuickDate(offsetDays) {
+      const d = new Date();
+      d.setDate(d.getDate() + offsetDays);
+      const str = d.toISOString().split("T")[0];
+      const el = document.getElementById("field-plan-date");
+      if (el) el.value = str;
+      scheduleSaveDraft();
+    }
+
+    function scheduleSaveDraft() {
+      if (draftSaveTimer) clearTimeout(draftSaveTimer);
+      draftSaveTimer = setTimeout(saveDraftToStorage, 300);
+    }
+
+    function saveDraftToStorage() {
+      try {
+        const rawInput = document.getElementById("raw-input");
+        const rawVal = rawInput ? rawInput.value : "";
+        const formBox = document.getElementById("form-container");
+        const isFormOpen = formBox && !formBox.classList.contains("hidden");
+
+        const compName = getDraftFieldVal("field-company-name");
+        // 如果全部为空且表单未展开，不缓存
+        if (!rawVal.trim() && !isFormOpen && !compName && (!currentPhotos || currentPhotos.length === 0)) {
+          return;
+        }
+
+        const draft = {
+          raw_notes: rawVal,
+          targetStatus: currentRecordTargetStatus,
+          isFormOpen: isFormOpen,
+          photos: currentPhotos || [],
+          fields: {
+            company_name: getDraftFieldVal("field-company-name"),
+            location: getDraftFieldVal("field-location"),
+            cooperation_intent: getDraftFieldVal("field-cooperation-intent") || "中",
+            scale: getDraftFieldVal("field-scale"),
+            main_products: getDraftFieldVal("field-main-products"),
+            advantage_products: getDraftFieldVal("field-advantage-products"),
+            price_terms: getDraftFieldVal("field-price-terms"),
+            payment_terms: getDraftFieldVal("field-payment-terms"),
+            contact_name: getDraftFieldVal("field-contact-name"),
+            contact_role: getDraftFieldVal("field-contact-role"),
+            contact_phone: getDraftFieldVal("field-contact-phone"),
+            extra_notes: getDraftFieldVal("field-extra-notes"),
+            plan_date: getDraftFieldVal("field-plan-date")
+          },
+          updatedAt: Date.now()
+        };
+        localStorage.setItem(DRAFT_STORAGE_KEY, JSON.stringify(draft));
+      } catch (e) {
+        console.warn("草稿存储异常", e);
+      }
+    }
+
+    function getDraftFieldVal(id) {
+      const el = document.getElementById(id);
+      return el ? el.value : "";
+    }
+
+    function restoreDraftFromStorage() {
+      try {
+        const raw = localStorage.getItem(DRAFT_STORAGE_KEY);
+        if (!raw) return;
+        const draft = JSON.parse(raw);
+        if (!draft) return;
+
+        let hasData = false;
+        if (draft.raw_notes && draft.raw_notes.trim()) {
+          const rawEl = document.getElementById("raw-input");
+          if (rawEl) rawEl.value = draft.raw_notes;
+          hasData = true;
+        }
+        if (draft.photos && draft.photos.length > 0) {
+          currentPhotos = draft.photos;
+          renderCurrentPhotos();
+          hasData = true;
+        }
+        if (draft.targetStatus) {
+          setRecordTargetStatus(draft.targetStatus);
+        }
+        if (draft.fields) {
+          for (const [k, v] of Object.entries(draft.fields)) {
+            const elId = `field-${k.replace(/_/g, '-')}`;
+            const el = document.getElementById(elId);
+            if (el && v) {
+              el.value = v;
+              hasData = true;
+            }
+          }
+        }
+        if (draft.isFormOpen && hasData) {
+          const formBox = document.getElementById("form-container");
+          if (formBox) formBox.classList.remove("hidden");
+        }
+
+        if (hasData) {
+          const banner = document.getElementById("draft-alert-banner");
+          if (banner) banner.classList.remove("hidden");
+          updateCharCount();
+        }
+      } catch (e) {
+        console.warn("恢复草稿失败", e);
+      }
+    }
+
+    function clearDraftAndReset() {
+      try {
+        localStorage.removeItem(DRAFT_STORAGE_KEY);
+      } catch (e) {}
+      const banner = document.getElementById("draft-alert-banner");
+      if (banner) banner.classList.add("hidden");
+      resetExtractForm();
+      showToast("已清空当前草稿");
+    }
+
+    function bindDraftAutoSaveEvents() {
+      const ids = [
+        "field-company-name", "field-location", "field-cooperation-intent",
+        "field-scale", "field-main-products", "field-advantage-products",
+        "field-price-terms", "field-payment-terms", "field-contact-name",
+        "field-contact-role", "field-contact-phone", "field-extra-notes",
+        "field-plan-date"
+      ];
+      ids.forEach(id => {
+        const el = document.getElementById(id);
+        if (el) {
+          el.addEventListener("input", scheduleSaveDraft);
+          el.addEventListener("change", scheduleSaveDraft);
+        }
+      });
     }
 
     // 调用智能提取接口
@@ -1838,6 +2222,7 @@
           formBox.classList.remove("hidden");
           formBox.scrollIntoView({ behavior: "smooth" });
           showToast("提取完成！请核对信息");
+          scheduleSaveDraft();
         } else {
           showToast("提取失败：" + (res.detail || "请检查内容"));
         }
@@ -1856,9 +2241,15 @@
       currentPhotos = [];
       renderCurrentPhotos();
       updateCharCount();
+      setRecordTargetStatus("visited");
+      const planDateEl = document.getElementById("field-plan-date");
+      if (planDateEl) planDateEl.value = "";
+      try { localStorage.removeItem(DRAFT_STORAGE_KEY); } catch (e) {}
+      const banner = document.getElementById("draft-alert-banner");
+      if (banner) banner.classList.add("hidden");
     }
 
-    // 保存到供应商档案库
+    // 保存到供应商档案库 (支持已考察 / 待拜访双向保存)
     async function handleSaveSupplier() {
       const getVal = (id) => {
         const el = document.getElementById(id);
@@ -1878,6 +2269,9 @@
       const latVal = (latEl && latEl.value) ? parseFloat(latEl.value) : null;
       const lngVal = (lngEl && lngEl.value) ? parseFloat(lngEl.value) : null;
 
+      const targetStatus = currentRecordTargetStatus || "visited";
+      const planDate = getVal("field-plan-date");
+
       const payload = {
         company_name,
         location: getVal("field-location"),
@@ -1895,7 +2289,9 @@
         images: JSON.stringify(currentPhotos || []),
         latitude: isNaN(latVal) ? null : latVal,
         longitude: isNaN(lngVal) ? null : lngVal,
-        status: "visited" // 只要实地录入保存，自动升级为已考察
+        status: targetStatus,
+        plan_date: (targetStatus === "planned") ? (planDate || "") : null,
+        plan_notes: (targetStatus === "planned") ? getVal("field-extra-notes") : null
       };
 
       try {
@@ -1913,12 +2309,18 @@
         });
         const res = await resp.json();
         if (res.status === "ok") {
-          showToast(activePlannedId ? "🎉 现场考察完成，已正式归档入库！" : "🎉 档案已成功入库！");
+          const successMsg = activePlannedId 
+            ? "🎉 现场考察完成，已正式归档入库！" 
+            : (targetStatus === "planned" ? "📅 已成功加入待拜访行程！" : "🎉 档案已成功入库！");
+          showToast(successMsg);
           activePlannedId = null;
+          try { localStorage.removeItem(DRAFT_STORAGE_KEY); } catch (e) {}
+          const banner = document.getElementById("draft-alert-banner");
+          if (banner) banner.classList.add("hidden");
           resetExtractForm();
-          // 自动跳转到已拜访供应商列表
+          // 自动跳转到对应的供应商列表
           setTimeout(() => {
-            switchListStatus("visited");
+            switchListStatus(targetStatus);
             switchTab("tab-list");
           }, 400);
         } else {
@@ -2147,6 +2549,11 @@
               ${(currentUser && currentUser.role === 'admin') ? `
                 <button onclick="quickRevertToPlanned(${item.id}, '${escapeHtml(item.company_name)}')" class="px-2 py-1 rounded-lg bg-amber-50 hover:bg-amber-100 text-amber-800 text-xs flex items-center border border-amber-200" title="误操作？一键退回到待拜访行程">
                   <i data-lucide="rotate-ccw" class="w-3 h-3 mr-0.5 text-amber-600"></i>退回待办
+                </button>
+              ` : ''}
+              ${(currentUser && currentUser.role === 'admin') ? `
+                <button onclick="openFollowupModal(${item.id})" class="px-2 py-1 rounded-lg bg-emerald-50 hover:bg-emerald-100 text-emerald-800 text-xs flex items-center border border-emerald-300 font-medium" title="为该厂添加跟进待办">
+                  <i data-lucide="calendar-plus" class="w-3 h-3 mr-0.5 text-emerald-600"></i>+待办
                 </button>
               ` : ''}
               <a href="${getAuthUrl('/api/export/supplier/' + item.id)}" download class="px-2 py-1 rounded-lg bg-emerald-50 hover:bg-emerald-100 text-emerald-800 text-xs flex items-center border border-emerald-300 font-medium" title="导出包含文字和现场照片的独立尽调表格">
@@ -2416,6 +2823,7 @@
             document.getElementById("modal-raw-container").classList.add("hidden");
           }
 
+          loadFollowupsForSupplier(d.id);
           document.getElementById("detail-modal").classList.remove("hidden");
           lucide.createIcons();
         }
@@ -2818,11 +3226,497 @@
       }
     }
 
-    // 初始化加载：鉴权检测并加载业务
+    // ----------------- 商务跟进待办与月历系统 -----------------
+    let followupsData = [];
+    let currentCalendarYear = new Date().getFullYear();
+    let currentCalendarMonth = new Date().getMonth(); // 0 到 11
+    let selectedCalendarDate = ""; // 'YYYY-MM-DD'
+    let currentFollowupFilter = "all_pending"; // 'today', 'overdue', 'all_pending', 'completed', 'all', 'date'
+
+    async function loadFollowups() {
+      try {
+        const resp = await fetch("/api/followups");
+        const res = await resp.json();
+        if (res.status === "ok") {
+          followupsData = res.data || [];
+          updateFollowupStats();
+          renderCalendar();
+          renderFollowupList();
+          updateCalendarBadge();
+        }
+      } catch (e) {
+        console.error("加载待办日程失败", e);
+      }
+    }
+
+    function getTodayStr() {
+      const d = new Date();
+      const y = d.getFullYear();
+      const m = String(d.getMonth() + 1).padStart(2, "0");
+      const day = String(d.getDate()).padStart(2, "0");
+      return `${y}-${m}-${day}`;
+    }
+
+    function updateFollowupStats() {
+      const today = getTodayStr();
+      let todayCount = 0;
+      let overdueCount = 0;
+      let pendingCount = 0;
+
+      followupsData.forEach(item => {
+        if (item.status === "pending") {
+          pendingCount++;
+          if (item.due_date === today) todayCount++;
+          else if (item.due_date < today) overdueCount++;
+        }
+      });
+
+      const elToday = document.getElementById("stat-followup-today");
+      const elOverdue = document.getElementById("stat-followup-overdue");
+      const elPending = document.getElementById("stat-followup-pending");
+      if (elToday) elToday.innerText = todayCount;
+      if (elOverdue) elOverdue.innerText = overdueCount;
+      if (elPending) elPending.innerText = pendingCount;
+    }
+
+    function updateCalendarBadge() {
+      const today = getTodayStr();
+      const hasUrgent = followupsData.some(x => x.status === "pending" && x.due_date <= today);
+      const badge = document.getElementById("nav-badge-calendar");
+      if (badge) {
+        if (hasUrgent) badge.classList.remove("hidden");
+        else badge.classList.add("hidden");
+      }
+    }
+
+    function changeMonth(delta) {
+      currentCalendarMonth += delta;
+      if (currentCalendarMonth < 0) {
+        currentCalendarMonth = 11;
+        currentCalendarYear -= 1;
+      } else if (currentCalendarMonth > 11) {
+        currentCalendarMonth = 0;
+        currentCalendarYear += 1;
+      }
+      renderCalendar();
+    }
+
+    function goToCurrentMonth() {
+      const now = new Date();
+      currentCalendarYear = now.getFullYear();
+      currentCalendarMonth = now.getMonth();
+      selectedCalendarDate = getTodayStr();
+      renderCalendar();
+      filterFollowupList("date");
+    }
+
+    function renderCalendar() {
+      const titleEl = document.getElementById("calendar-month-title");
+      if (titleEl) {
+        titleEl.innerText = `${currentCalendarYear}年 ${currentCalendarMonth + 1}月`;
+      }
+
+      const grid = document.getElementById("calendar-days-grid");
+      if (!grid) return;
+
+      const firstDay = new Date(currentCalendarYear, currentCalendarMonth, 1);
+      let startingDay = firstDay.getDay(); // 0 is Sunday, 1 is Monday
+      let startCol = (startingDay === 0) ? 6 : (startingDay - 1);
+
+      const daysInMonth = new Date(currentCalendarYear, currentCalendarMonth + 1, 0).getDate();
+      const todayStr = getTodayStr();
+
+      const followupsByDate = {};
+      followupsData.forEach(item => {
+        if (!followupsByDate[item.due_date]) {
+          followupsByDate[item.due_date] = [];
+        }
+        followupsByDate[item.due_date].push(item);
+      });
+
+      let html = "";
+      for (let i = 0; i < startCol; i++) {
+        html += `<div class="p-2 text-slate-200"></div>`;
+      }
+
+      for (let day = 1; day <= daysInMonth; day++) {
+        const mStr = String(currentCalendarMonth + 1).padStart(2, "0");
+        const dStr = String(day).padStart(2, "0");
+        const dateKey = `${currentCalendarYear}-${mStr}-${dStr}`;
+        const isToday = (dateKey === todayStr);
+        const isSelected = (dateKey === selectedCalendarDate);
+        const items = followupsByDate[dateKey] || [];
+
+        const hasOverdue = items.some(x => x.status === "pending" && x.due_date < todayStr);
+        const hasTodayPending = items.some(x => x.status === "pending" && x.due_date === todayStr);
+        const hasFuturePending = items.some(x => x.status === "pending" && x.due_date > todayStr);
+        const hasCompletedOnly = items.length > 0 && items.every(x => x.status === "completed");
+
+        let dotColor = "";
+        if (hasOverdue) dotColor = "bg-rose-500 animate-pulse";
+        else if (hasTodayPending) dotColor = "bg-amber-500";
+        else if (hasFuturePending) dotColor = "bg-emerald-500";
+        else if (hasCompletedOnly) dotColor = "bg-slate-300";
+
+        let cellClasses = "relative p-1.5 rounded-xl cursor-pointer transition flex flex-col items-center justify-between min-h-[46px] select-none ";
+        if (isSelected) {
+          cellClasses += "bg-emerald-600 text-white font-black shadow-sm ";
+        } else if (isToday) {
+          cellClasses += "bg-emerald-50 text-emerald-800 font-bold border border-emerald-300 ";
+        } else {
+          cellClasses += "hover:bg-slate-50 text-slate-700 ";
+        }
+
+        html += `
+          <div onclick="selectCalendarDate('${dateKey}')" class="${cellClasses}">
+            <span class="text-xs leading-none mt-0.5">${day}</span>
+            <div class="h-2 flex items-center justify-center space-x-0.5">
+              ${dotColor ? `<span class="w-1.5 h-1.5 rounded-full ${isSelected ? 'bg-white' : dotColor}"></span>` : ''}
+              ${items.length > 1 ? `<span class="text-[9px] ${isSelected ? 'text-white' : 'text-slate-400'} font-semibold leading-none">${items.length}</span>` : ''}
+            </div>
+          </div>
+        `;
+      }
+
+      grid.innerHTML = html;
+      lucide.createIcons();
+    }
+
+    function selectCalendarDate(dateKey) {
+      if (selectedCalendarDate === dateKey) {
+        selectedCalendarDate = "";
+        currentFollowupFilter = "all_pending";
+      } else {
+        selectedCalendarDate = dateKey;
+        currentFollowupFilter = "date";
+      }
+      renderCalendar();
+      renderFollowupList();
+    }
+
+    function filterFollowupList(filterType) {
+      currentFollowupFilter = filterType;
+      if (filterType !== "date") {
+        selectedCalendarDate = "";
+      }
+
+      const btnPending = document.getElementById("btn-fltr-pending");
+      const btnCompleted = document.getElementById("btn-fltr-completed");
+      const btnAll = document.getElementById("btn-fltr-all");
+      if (btnPending) btnPending.className = filterType === 'all_pending' ? "px-2 py-0.5 rounded-md font-semibold bg-emerald-100 text-emerald-800 transition" : "px-2 py-0.5 rounded-md text-slate-500 hover:text-slate-800 transition";
+      if (btnCompleted) btnCompleted.className = filterType === 'completed' ? "px-2 py-0.5 rounded-md font-semibold bg-slate-200 text-slate-800 transition" : "px-2 py-0.5 rounded-md text-slate-500 hover:text-slate-800 transition";
+      if (btnAll) btnAll.className = filterType === 'all' ? "px-2 py-0.5 rounded-md font-semibold bg-slate-200 text-slate-800 transition" : "px-2 py-0.5 rounded-md text-slate-500 hover:text-slate-800 transition";
+
+      renderCalendar();
+      renderFollowupList();
+    }
+
+    function renderFollowupList() {
+      const container = document.getElementById("followup-list-container");
+      const titleEl = document.getElementById("followup-list-title");
+      const countEl = document.getElementById("followup-list-count");
+      if (!container) return;
+
+      const todayStr = getTodayStr();
+      let filtered = [];
+
+      if (currentFollowupFilter === "date" && selectedCalendarDate) {
+        filtered = followupsData.filter(x => x.due_date === selectedCalendarDate);
+        if (titleEl) titleEl.innerText = `${selectedCalendarDate} 当日待办`;
+      } else if (currentFollowupFilter === "today") {
+        filtered = followupsData.filter(x => x.status === "pending" && x.due_date === todayStr);
+        if (titleEl) titleEl.innerText = "今日到期待办";
+      } else if (currentFollowupFilter === "overdue") {
+        filtered = followupsData.filter(x => x.status === "pending" && x.due_date < todayStr);
+        if (titleEl) titleEl.innerText = "已逾期待办";
+      } else if (currentFollowupFilter === "completed") {
+        filtered = followupsData.filter(x => x.status === "completed");
+        if (titleEl) titleEl.innerText = "已完成事项";
+      } else if (currentFollowupFilter === "all") {
+        filtered = followupsData;
+        if (titleEl) titleEl.innerText = "全部待办事项";
+      } else {
+        filtered = followupsData.filter(x => x.status === "pending");
+        if (titleEl) titleEl.innerText = "未完结待办";
+      }
+
+      if (countEl) countEl.innerText = filtered.length;
+
+      if (filtered.length === 0) {
+        container.innerHTML = `
+          <div class="text-center py-8 bg-white rounded-2xl border border-slate-100 p-4 space-y-2">
+            <span class="text-3xl block">🏖️</span>
+            <p class="text-xs font-semibold text-slate-600">暂无相关待办事项</p>
+            <p class="text-[11px] text-slate-400">点击右上角“新建待办”为已拜访的工厂添加跟进计划</p>
+          </div>
+        `;
+        return;
+      }
+
+      const isViewer = currentUser && currentUser.role === "viewer";
+
+      let html = filtered.map(item => {
+        const isCompleted = item.status === "completed";
+        let dateBadge = "";
+
+        if (isCompleted) {
+          dateBadge = `<span class="text-[10px] px-2 py-0.5 rounded-full bg-slate-100 text-slate-500 font-medium">已完结</span>`;
+        } else if (item.due_date < todayStr) {
+          dateBadge = `<span class="text-[10px] px-2 py-0.5 rounded-full bg-rose-100 text-rose-700 font-bold border border-rose-200">逾期 · ${item.due_date}</span>`;
+        } else if (item.due_date === todayStr) {
+          dateBadge = `<span class="text-[10px] px-2 py-0.5 rounded-full bg-amber-100 text-amber-800 font-bold border border-amber-300">今日到期</span>`;
+        } else {
+          dateBadge = `<span class="text-[10px] px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-700 font-semibold border border-emerald-200">${item.due_date}</span>`;
+        }
+
+        return `
+          <div class="bg-white rounded-2xl p-3 border border-slate-200 shadow-2xs hover:border-emerald-300 transition space-y-2">
+            <div class="flex items-start justify-between">
+              <div class="flex items-start space-x-2.5 flex-1 pr-2">
+                <button ${isViewer ? 'disabled' : ''} onclick="toggleFollowupItem(${item.id})" class="mt-0.5 flex-shrink-0 w-5 h-5 rounded-lg border flex items-center justify-center transition ${isCompleted ? 'bg-emerald-600 border-emerald-600 text-white' : 'border-slate-300 hover:border-emerald-500 text-transparent'}">
+                  <i data-lucide="check" class="w-3.5 h-3.5 ${isCompleted ? 'stroke-[3]' : ''}"></i>
+                </button>
+                <div class="space-y-0.5 flex-1">
+                  <h4 class="text-xs font-bold ${isCompleted ? 'line-through text-slate-400' : 'text-slate-800'} leading-snug">
+                    ${escapeHtml(item.title)}
+                  </h4>
+                  <div class="flex items-center space-x-2 text-[11px] text-slate-500">
+                    <button onclick="openDetailModal(${item.supplier_id})" class="text-emerald-700 hover:underline font-semibold flex items-center text-left">
+                      <i data-lucide="building-2" class="w-3 h-3 mr-0.5 flex-shrink-0"></i>
+                      <span class="truncate max-w-[150px]">${escapeHtml(item.company_name || '未知工厂')}</span>
+                    </button>
+                    ${item.contact_name ? `<span class="text-slate-400">· ${escapeHtml(item.contact_name)}</span>` : ''}
+                  </div>
+                </div>
+              </div>
+              <div class="flex items-center space-x-1 flex-shrink-0">
+                ${dateBadge}
+                ${!isViewer ? `
+                  <button onclick="deleteFollowupItem(${item.id})" class="p-1 text-slate-300 hover:text-rose-500 rounded-lg transition" title="删除待办">
+                    <i data-lucide="trash-2" class="w-3.5 h-3.5"></i>
+                  </button>
+                ` : ''}
+              </div>
+            </div>
+            ${item.notes ? `
+              <div class="text-[11px] text-slate-600 bg-slate-50 rounded-xl p-2 border border-slate-100 flex items-start space-x-1.5 ml-7">
+                <i data-lucide="message-square" class="w-3 h-3 text-slate-400 mt-0.5 flex-shrink-0"></i>
+                <p class="whitespace-pre-wrap">${escapeHtml(item.notes)}</p>
+              </div>
+            ` : ''}
+          </div>
+        `;
+      }).join("");
+
+      container.innerHTML = html;
+      lucide.createIcons();
+    }
+
+    function openFollowupModal(presetSupplierId = null) {
+      if (currentUser && currentUser.role === "viewer") {
+        showToast("只读权限无法新建待办");
+        return;
+      }
+      const selectEl = document.getElementById("followup-supplier-id");
+      if (selectEl) {
+        let optsHtml = "";
+        suppliersData.forEach(s => {
+          const isSelected = presetSupplierId ? (s.id === presetSupplierId) : false;
+          optsHtml += `<option value="${s.id}" ${isSelected ? 'selected' : ''}>${escapeHtml(s.company_name)} (${s.location || '未知产区'})</option>`;
+        });
+        if (!optsHtml) {
+          optsHtml = `<option value="">暂无供应商，请先录入</option>`;
+        }
+        selectEl.innerHTML = optsHtml;
+      }
+
+      const dateEl = document.getElementById("followup-due-date");
+      if (dateEl) {
+        dateEl.value = selectedCalendarDate || getTodayStr();
+      }
+
+      document.getElementById("followup-title").value = "";
+      document.getElementById("followup-notes").value = "";
+      document.getElementById("followup-modal").classList.remove("hidden");
+      lucide.createIcons();
+    }
+
+    function closeFollowupModal() {
+      document.getElementById("followup-modal").classList.add("hidden");
+    }
+
+    function setFollowupQuickDate(offsetDays) {
+      const d = new Date();
+      d.setDate(d.getDate() + offsetDays);
+      const str = d.toISOString().split("T")[0];
+      const el = document.getElementById("followup-due-date");
+      if (el) el.value = str;
+    }
+
+    function fillFollowupTemplate(tpl) {
+      const input = document.getElementById("followup-title");
+      if (input) {
+        input.value = tpl;
+        input.focus();
+      }
+    }
+
+    async function handleSaveFollowup() {
+      const supplier_id = parseInt(document.getElementById("followup-supplier-id").value);
+      const due_date = document.getElementById("followup-due-date").value.trim();
+      const title = document.getElementById("followup-title").value.trim();
+      const notes = document.getElementById("followup-notes").value.trim();
+
+      if (!supplier_id) {
+        showToast("请先选择关联的供应商");
+        return;
+      }
+      if (!due_date) {
+        showToast("请选择待办日期");
+        return;
+      }
+      if (!title) {
+        showToast("请输入待办事项内容");
+        return;
+      }
+
+      const btn = document.getElementById("btn-save-followup");
+      if (btn) btn.disabled = true;
+
+      try {
+        const resp = await fetch("/api/followups", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ supplier_id, due_date, title, notes, status: "pending" })
+        });
+        const res = await resp.json();
+        if (res.status === "ok") {
+          showToast("🎉 商务待办已创建！");
+          closeFollowupModal();
+          await loadFollowups();
+          const modalId = document.getElementById("modal-id").value;
+          if (modalId && parseInt(modalId) === supplier_id) {
+            loadFollowupsForSupplier(supplier_id);
+          }
+        } else {
+          showToast("创建失败: " + (res.detail || "接口返回错误"));
+        }
+      } catch (e) {
+        showToast("网络请求异常");
+      } finally {
+        if (btn) btn.disabled = false;
+      }
+    }
+
+    async function toggleFollowupItem(id) {
+      try {
+        const resp = await fetch(`/api/followups/${id}/toggle`, { method: "PATCH" });
+        const res = await resp.json();
+        if (res.status === "ok") {
+          showToast(res.status === "completed" ? "✅ 待办已完成！" : "已重新恢复为待办");
+          await loadFollowups();
+          const modalId = document.getElementById("modal-id").value;
+          if (modalId) {
+            loadFollowupsForSupplier(parseInt(modalId));
+          }
+        }
+      } catch (e) {
+        showToast("更新状态失败");
+      }
+    }
+
+    async function deleteFollowupItem(id) {
+      if (!confirm("确定要删除这条商务待办吗？")) return;
+      try {
+        const resp = await fetch(`/api/followups/${id}`, { method: "DELETE" });
+        const res = await resp.json();
+        if (res.status === "ok") {
+          showToast("已删除待办事项");
+          await loadFollowups();
+          const modalId = document.getElementById("modal-id").value;
+          if (modalId) {
+            loadFollowupsForSupplier(parseInt(modalId));
+          }
+        }
+      } catch (e) {
+        showToast("删除失败");
+      }
+    }
+
+    function openAddFollowupForCurrentSupplier() {
+      const id = document.getElementById("modal-id").value;
+      if (!id) return;
+      openFollowupModal(parseInt(id));
+    }
+
+    async function loadFollowupsForSupplier(supplierId) {
+      const container = document.getElementById("modal-followup-list");
+      if (!container) return;
+
+      try {
+        const resp = await fetch(`/api/followups?supplier_id=${supplierId}`);
+        const res = await resp.json();
+        if (res.status === "ok") {
+          const list = res.data || [];
+          if (list.length === 0) {
+            container.innerHTML = `
+              <div class="text-center py-2 text-slate-400 text-[11px] bg-slate-50 rounded-xl border border-dashed border-slate-200">
+                暂无商务待办，点击上方“新增待办”跟进样品与回访
+              </div>
+            `;
+            return;
+          }
+
+          const isViewer = currentUser && currentUser.role === "viewer";
+          const todayStr = getTodayStr();
+
+          container.innerHTML = list.map(item => {
+            const isCompleted = item.status === "completed";
+            return `
+              <div class="flex items-center justify-between p-2 rounded-xl border ${isCompleted ? 'bg-slate-50 border-slate-200' : 'bg-emerald-50/50 border-emerald-200'} text-xs">
+                <div class="flex items-center space-x-2 flex-1 pr-1">
+                  <button ${isViewer ? 'disabled' : ''} onclick="toggleFollowupItem(${item.id})" class="w-4 h-4 rounded border flex items-center justify-center flex-shrink-0 ${isCompleted ? 'bg-emerald-600 border-emerald-600 text-white' : 'border-slate-300 text-transparent'}">
+                    <i data-lucide="check" class="w-3 h-3"></i>
+                  </button>
+                  <span class="${isCompleted ? 'line-through text-slate-400' : 'font-semibold text-slate-800'} text-xs truncate">
+                    ${escapeHtml(item.title)}
+                  </span>
+                </div>
+                <div class="flex items-center space-x-1.5 flex-shrink-0">
+                  <span class="text-[10px] ${item.due_date <= todayStr && !isCompleted ? 'text-rose-600 font-bold' : 'text-slate-400'}">${item.due_date}</span>
+                  ${!isViewer ? `
+                    <button onclick="deleteFollowupItem(${item.id})" class="text-slate-300 hover:text-rose-500 p-0.5">
+                      <i data-lucide="trash-2" class="w-3 h-3"></i>
+                    </button>
+                  ` : ''}
+                </div>
+              </div>
+            `;
+          }).join("");
+          lucide.createIcons();
+        }
+      } catch (e) {
+        console.error("加载供应商待办异常", e);
+      }
+    }
+
+    // 初始化加载：鉴权检测、草稿恢复与待办数据加载
     window.addEventListener("DOMContentLoaded", () => {
       checkMyAuthStatus();
+      restoreDraftFromStorage();
+      bindDraftAutoSaveEvents();
+      loadFollowups();
       lucide.createIcons();
     });
+
+    // 监听移动端息屏、切后台与页面卸载事件，毫秒级封存草稿
+    document.addEventListener("visibilitychange", () => {
+      if (document.hidden) {
+        saveDraftToStorage();
+      }
+    });
+    window.addEventListener("pagehide", saveDraftToStorage);
+    window.addEventListener("beforeunload", saveDraftToStorage);
   </script>
 </body>
 </html>

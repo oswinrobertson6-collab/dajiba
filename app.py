@@ -187,6 +187,21 @@ def init_db():
     )
     """)
 
+    # 客户跟进与待办事项表 (支持按日期、待办标题、状态管理)
+    cursor.execute("""
+    CREATE TABLE IF NOT EXISTS followups (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        supplier_id INTEGER NOT NULL,
+        due_date TEXT NOT NULL,
+        title TEXT NOT NULL,
+        notes TEXT DEFAULT '',
+        status TEXT DEFAULT 'pending',
+        created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+        updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+        FOREIGN KEY(supplier_id) REFERENCES suppliers(id) ON DELETE CASCADE
+    )
+    """)
+
     # 保证最高管理员 xiaoyao 永久存在（密码 123456）
     cursor.execute("SELECT id, role, password_hash, salt FROM users WHERE username = 'xiaoyao'")
     admin_row = cursor.fetchone()
@@ -359,6 +374,19 @@ class SupplierCreate(BaseModel):
     status: Optional[str] = "visited"
     plan_date: Optional[str] = ""
     plan_notes: Optional[str] = ""
+
+class FollowupCreate(BaseModel):
+    supplier_id: int
+    due_date: str
+    title: str
+    notes: Optional[str] = ""
+    status: Optional[str] = "pending"
+
+class FollowupUpdate(BaseModel):
+    due_date: Optional[str] = None
+    title: Optional[str] = None
+    notes: Optional[str] = None
+    status: Optional[str] = None
 
 class ExtractRequest(BaseModel):
     text: str
@@ -1029,6 +1057,113 @@ def delete_supplier(supplier_id: int, background_tasks: BackgroundTasks, user: d
 
     background_tasks.add_task(push_db_to_github)
     return {"status": "ok", "message": "已删除"}
+
+# ----------------- 客户跟进与日程待办 API -----------------
+
+@app.get("/api/followups")
+def get_followups(
+    supplier_id: Optional[int] = None,
+    date: Optional[str] = None,
+    status: Optional[str] = None,
+    user: dict = Depends(require_active_user)
+):
+    conn = sqlite3.connect(DB_PATH)
+    conn.row_factory = sqlite3.Row
+    cursor = conn.cursor()
+
+    query = """
+        SELECT f.*, s.company_name, s.contact_name, s.contact_phone, s.location
+        FROM followups f
+        JOIN suppliers s ON f.supplier_id = s.id
+        WHERE 1=1
+    """
+    params = []
+    if supplier_id:
+        query += " AND f.supplier_id = ?"
+        params.append(supplier_id)
+    if date:
+        query += " AND f.due_date = ?"
+        params.append(date)
+    if status and status != "全部":
+        query += " AND f.status = ?"
+        params.append(status)
+
+    query += " ORDER BY f.status ASC, f.due_date ASC, f.id DESC"
+    cursor.execute(query, params)
+    rows = cursor.fetchall()
+    data = [dict(r) for r in rows]
+    conn.close()
+    return {"status": "ok", "data": data}
+
+@app.post("/api/followups")
+def create_followup(
+    item: FollowupCreate,
+    background_tasks: BackgroundTasks,
+    user: dict = Depends(require_admin)
+):
+    title = item.title.strip()
+    due_date = item.due_date.strip()
+    if not title:
+        raise HTTPException(status_code=400, detail="待办内容不能为空")
+    if not due_date:
+        raise HTTPException(status_code=400, detail="请选择待办日期")
+
+    conn = sqlite3.connect(DB_PATH)
+    cursor = conn.cursor()
+    cursor.execute("SELECT id FROM suppliers WHERE id = ?", (item.supplier_id,))
+    if not cursor.fetchone():
+        conn.close()
+        raise HTTPException(status_code=404, detail="未找到对应的供应商")
+
+    cursor.execute("""
+        INSERT INTO followups (supplier_id, due_date, title, notes, status)
+        VALUES (?, ?, ?, ?, ?)
+    """, (item.supplier_id, due_date, title, item.notes or "", item.status or "pending"))
+    new_id = cursor.lastrowid
+    conn.commit()
+    conn.close()
+
+    background_tasks.add_task(push_db_to_github)
+    return {"status": "ok", "message": "待办事项已添加", "id": new_id}
+
+@app.patch("/api/followups/{followup_id}/toggle")
+def toggle_followup_status(
+    followup_id: int,
+    background_tasks: BackgroundTasks,
+    user: dict = Depends(require_admin)
+):
+    conn = sqlite3.connect(DB_PATH)
+    cursor = conn.cursor()
+    cursor.execute("SELECT status FROM followups WHERE id = ?", (followup_id,))
+    row = cursor.fetchone()
+    if not row:
+        conn.close()
+        raise HTTPException(status_code=404, detail="未找到该待办事项")
+
+    current_status = row[0]
+    new_status = "completed" if current_status == "pending" else "pending"
+    now_str = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    cursor.execute("UPDATE followups SET status = ?, updated_at = ? WHERE id = ?", (new_status, now_str, followup_id))
+    conn.commit()
+    conn.close()
+
+    background_tasks.add_task(push_db_to_github)
+    return {"status": "ok", "message": "状态更新成功", "status": new_status}
+
+@app.delete("/api/followups/{followup_id}")
+def delete_followup(
+    followup_id: int,
+    background_tasks: BackgroundTasks,
+    user: dict = Depends(require_admin)
+):
+    conn = sqlite3.connect(DB_PATH)
+    cursor = conn.cursor()
+    cursor.execute("DELETE FROM followups WHERE id = ?", (followup_id,))
+    conn.commit()
+    conn.close()
+
+    background_tasks.add_task(push_db_to_github)
+    return {"status": "ok", "message": "待办事项已删除"}
 
 # ----------------- 设置管理 -----------------
 @app.get("/api/settings")
