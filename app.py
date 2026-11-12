@@ -2199,6 +2199,54 @@ async def sync_all_to_jianguoyun() -> Dict[str, Any]:
         "message": f"全量同步完成！已将最新总台账Excel、数据库备份包及 {count} 家工厂独立档案同步至坚果云目录！"
     }
 
+# ----------------- 本地坚果云自动同步守护进程 -----------------
+def start_local_nutstore_auto_sync():
+    """若在拥有本地坚果云客户端的电脑上运行，自动启动定时同步线程，每15分钟从云端拉取最新手机端录入数据并刷新坚果云本地目录"""
+    import threading
+    import time
+
+    def _worker():
+        # 首次启动稍候 5 秒后立即执行一次全量刷新
+        time.sleep(5)
+        try:
+            local_dir = get_local_nutstore_dir()
+            if local_dir:
+                pull_db_from_github()
+                master_bytes, master_fn = build_master_excel_bytes()
+                base_folder = os.path.join(local_dir, "无花果供应商档案")
+                os.makedirs(base_folder, exist_ok=True)
+                with open(os.path.join(base_folder, "无花果供应商总台账_最新版.xlsx"), "wb") as f:
+                    f.write(master_bytes)
+                print("✅ [坚果云本地守护] 启动时已成功同步最新总台账至坚果云！")
+        except Exception as e:
+            print(f"⚠️ [坚果云本地守护] 启动同步异常: {e}")
+
+        while True:
+            time.sleep(900) # 每15分钟自动同步一次
+            try:
+                local_dir = get_local_nutstore_dir()
+                if local_dir:
+                    if pull_db_from_github():
+                        master_bytes, master_fn = build_master_excel_bytes()
+                        base_folder = os.path.join(local_dir, "无花果供应商档案")
+                        os.makedirs(base_folder, exist_ok=True)
+                        with open(os.path.join(base_folder, "无花果供应商总台账_最新版.xlsx"), "wb") as f:
+                            f.write(master_bytes)
+                        # 备份 db
+                        if os.path.exists(DB_PATH):
+                            backup_dir = os.path.join(base_folder, "数据库自动备份")
+                            os.makedirs(backup_dir, exist_ok=True)
+                            db_name = f"suppliers_{datetime.datetime.now().strftime('%Y%m%d_%H%M%S')}.db"
+                            shutil.copy2(DB_PATH, os.path.join(backup_dir, db_name))
+                        print("✅ [坚果云本地守护] 定时同步完成，最新总台账与数据库已同步至坚果云！")
+            except Exception as e:
+                pass
+
+    t = threading.Thread(target=_worker, daemon=True)
+    t.start()
+
+start_local_nutstore_auto_sync()
+
 @app.get("/api/jianguoyun/settings")
 def get_jianguoyun_settings(user: dict = Depends(require_admin)):
     conn = sqlite3.connect(DB_PATH)
