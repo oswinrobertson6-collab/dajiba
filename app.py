@@ -35,6 +35,12 @@ _GH_PARTS = ["ghp_", "Fd20upZXnYuU", "QtHRB3LKWosLnD", "N0df1fH4vc"]
 GITHUB_TOKEN = os.getenv("GITHUB_TOKEN", "".join(_GH_PARTS))
 GITHUB_REPO = os.getenv("GITHUB_REPO", "oswinrobertson6-collab/dajiba")
 
+def get_now_str() -> str:
+    """统一返回中国标准时间 (UTC+8 北京时间) 字符串，避免服务器与本地时区偏差"""
+    utc_now = datetime.datetime.now(datetime.timezone.utc)
+    beijing_tz = datetime.timezone(datetime.timedelta(hours=8))
+    return utc_now.astimezone(beijing_tz).strftime("%Y-%m-%d %H:%M:%S")
+
 def hash_password(password: str, salt: str = None):
     if not salt:
         salt = secrets.token_hex(16)
@@ -1066,7 +1072,7 @@ def get_suppliers(
         query += " AND category = ?"
         params.append(category)
 
-    query += " ORDER BY id DESC"
+    query += " ORDER BY updated_at DESC, id DESC"
     cursor.execute(query, params)
     rows = cursor.fetchall()
     suppliers = [dict(row) for row in rows]
@@ -1228,13 +1234,14 @@ def create_supplier(supplier: SupplierCreate, background_tasks: BackgroundTasks,
     elif first_name or first_phone or first_role:
         c_list = [{"name": first_name, "role": first_role, "phone": first_phone}]
 
+    now_time = get_now_str()
     cursor.execute("""
     INSERT INTO suppliers (
         company_name, location, scale, main_products, advantage_products,
         price_terms, payment_terms, cooperation_intent, category, contact_name,
         contact_phone, contact_role, raw_notes, extra_notes, images,
-        latitude, longitude, status, plan_date, plan_notes, contacts, updated_at
-    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
+        latitude, longitude, status, plan_date, plan_notes, contacts, created_at, updated_at
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     """, (
         supplier.company_name, supplier.location, supplier.scale,
         supplier.main_products, supplier.advantage_products,
@@ -1243,7 +1250,8 @@ def create_supplier(supplier: SupplierCreate, background_tasks: BackgroundTasks,
         first_name, first_phone, first_role,
         supplier.raw_notes, supplier.extra_notes, supplier.images or "[]",
         supplier.latitude, supplier.longitude, supplier.status or "visited",
-        supplier.plan_date, supplier.plan_notes, json.dumps(c_list, ensure_ascii=False)
+        supplier.plan_date, supplier.plan_notes, json.dumps(c_list, ensure_ascii=False),
+        now_time, now_time
     ))
     new_id = cursor.lastrowid
     conn.commit()
@@ -1293,13 +1301,14 @@ def update_supplier(supplier_id: int, supplier: SupplierCreate, background_tasks
     elif first_name or first_phone or first_role:
         c_list = [{"name": first_name, "role": first_role, "phone": first_phone}]
 
+    now_time = get_now_str()
     cursor.execute("""
     UPDATE suppliers SET
         company_name = ?, location = ?, scale = ?, main_products = ?, advantage_products = ?,
         price_terms = ?, payment_terms = ?, cooperation_intent = ?, category = ?, contact_name = ?,
         contact_phone = ?, contact_role = ?, raw_notes = ?, extra_notes = ?, images = ?,
         latitude = ?, longitude = ?, status = ?, plan_date = ?, plan_notes = ?, contacts = ?,
-        updated_at = CURRENT_TIMESTAMP
+        updated_at = ?
     WHERE id = ?
     """, (
         supplier.company_name, supplier.location, supplier.scale,
@@ -1310,6 +1319,7 @@ def update_supplier(supplier_id: int, supplier: SupplierCreate, background_tasks
         supplier.raw_notes, supplier.extra_notes, supplier.images or "[]",
         supplier.latitude, supplier.longitude, final_status,
         final_plan_date, final_plan_notes, json.dumps(c_list, ensure_ascii=False),
+        now_time,
         supplier_id
     ))
     conn.commit()
@@ -1328,7 +1338,8 @@ def change_supplier_status(supplier_id: int, req: Dict[str, str], background_tas
         raise HTTPException(status_code=400, detail="无效状态，仅支持 visited 或 planned")
     conn = sqlite3.connect(DB_PATH)
     cursor = conn.cursor()
-    cursor.execute("UPDATE suppliers SET status = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?", (new_status, supplier_id))
+    now_time = get_now_str()
+    cursor.execute("UPDATE suppliers SET status = ?, updated_at = ? WHERE id = ?", (new_status, now_time, supplier_id))
     conn.commit()
     conn.close()
     background_tasks.add_task(push_db_to_github)
