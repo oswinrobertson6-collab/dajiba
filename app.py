@@ -2268,3 +2268,10 @@ def read_root():
                 }
             )
     return HTMLResponse("<h1>系统加载中...</h1>")
+
+@app.get("/favicon.ico")
+def get_favicon():
+    fav_path = os.path.join(STATIC_DIR, "favicon.ico")
+    if os.path.exists(fav_path):
+        return FileResponse(fav_path)
+    raise HTTPException(status_code=404)

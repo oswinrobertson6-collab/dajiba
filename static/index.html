@@ -10,6 +10,12 @@
   <meta name="apple-mobile-web-app-title" content="无花果供应商录入">
   <meta name="theme-color" content="#166534">
 
+  <!-- App 图标 (果字图标) 与 PWA 配置 -->
+  <link rel="icon" type="image/svg+xml" href="/static/icon.svg">
+  <link rel="alternate icon" href="/static/favicon.ico">
+  <link rel="apple-touch-icon" sizes="180x180" href="/static/apple-touch-icon.png">
+  <link rel="manifest" href="/static/manifest.json">
+
   <!-- Tailwind CSS & Lucide Icons -->
   <script src="https://cdn.tailwindcss.com"></script>
   <script src="https://unpkg.com/lucide@latest"></script>
@@ -42,7 +48,9 @@
   <header class="bg-gradient-to-r from-emerald-800 to-teal-700 text-white shadow-md sticky top-0 z-40">
     <div class="max-w-md mx-auto px-3 py-2 flex items-center justify-between">
       <div class="flex items-center space-x-2">
-        <span class="text-2xl">🌱</span>
+        <div class="w-7 h-7 rounded-lg bg-gradient-to-br from-emerald-400 to-teal-800 p-0.5 shadow-sm flex items-center justify-center flex-shrink-0 border border-white/20">
+          <span class="text-white font-black text-sm select-none tracking-tight">果</span>
+        </div>
         <div>
           <h1 class="text-xs font-bold tracking-tight flex items-center space-x-1.5">
             <span>无花果助手</span>
@@ -1237,7 +1245,7 @@
   <div id="auth-modal" class="fixed inset-0 bg-slate-900/85 backdrop-blur-md z-50 flex items-center justify-center hidden p-4">
     <div class="bg-white w-full max-w-sm rounded-3xl p-6 shadow-2xl space-y-4 animate-in zoom-in-95 duration-200">
       <div class="text-center space-y-1">
-        <div class="inline-flex p-3 bg-emerald-100 text-emerald-800 rounded-2xl mb-1 text-2xl shadow-inner">🌱</div>
+        <div class="inline-flex w-14 h-14 bg-gradient-to-br from-emerald-600 to-teal-800 text-white rounded-2xl mb-1 shadow-md items-center justify-center text-2xl font-black border border-emerald-400/30">果</div>
         <h2 class="text-base font-bold text-slate-900">无花果供应商考察助手</h2>
         <p class="text-xs text-slate-500">团队统一数据安全与权限管控</p>
       </div>
