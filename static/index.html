@@ -179,6 +179,18 @@
             <input type="text" id="field-company-name" class="w-full p-2.5 text-sm bg-slate-50 border border-slate-200 rounded-lg focus:ring-1 focus:ring-emerald-500 outline-none font-medium">
           </div>
 
+          <!-- 🏭 工厂产业分类 (10大分类) -->
+          <div>
+            <label class="block font-semibold text-slate-700 mb-1.5 flex items-center justify-between">
+              <span class="flex items-center"><i data-lucide="layers" class="w-3.5 h-3.5 mr-1 text-emerald-600"></i>工厂产业分类 (10大分类) *</span>
+              <span class="text-[10px] text-slate-400 font-normal">点击切换</span>
+            </label>
+            <input type="hidden" id="field-category" value="果条/果饼/果干/冻干/鲜果">
+            <div id="field-category-chips" class="grid grid-cols-2 gap-1.5">
+              <!-- 动态渲染分类胶囊 -->
+            </div>
+          </div>
+
           <div class="grid grid-cols-2 gap-2">
             <div>
               <div class="flex items-center justify-between mb-1">
@@ -373,6 +385,11 @@
           <button onclick="filterIntent('低', this)" class="filter-intent-btn px-3 py-1 rounded-full bg-slate-100 text-slate-600 flex-shrink-0">
             ❄️ 低意向 (<span id="count-low">0</span>)
           </button>
+        </div>
+
+        <!-- 🏭 10大工厂产业分类横滑筛选栏 (包含各分类专属图标与实时统计) -->
+        <div id="category-filter-container" class="flex items-center space-x-1.5 overflow-x-auto no-scrollbar text-xs pt-1 pb-0.5">
+          <!-- 动态渲染分类胶囊 -->
         </div>
       </div>
 
@@ -816,6 +833,17 @@
         <div>
           <label class="block font-semibold text-slate-600 mb-1">公司/工厂全称</label>
           <input type="text" id="modal-company-name" class="w-full p-2 text-sm bg-slate-50 border rounded-lg font-bold">
+        </div>
+        <!-- 🏭 工厂产业分类 (10大分类) -->
+        <div>
+          <label class="block font-semibold text-slate-700 mb-1.5 flex items-center justify-between">
+            <span class="flex items-center"><i data-lucide="layers" class="w-3.5 h-3.5 mr-1 text-emerald-600"></i>工厂产业分类 (10大分类) *</span>
+            <span class="text-[10px] text-slate-400 font-normal">点击切换</span>
+          </label>
+          <input type="hidden" id="modal-category" value="果条/果饼/果干/冻干/鲜果">
+          <div id="modal-category-chips" class="grid grid-cols-2 gap-1.5">
+            <!-- 动态渲染分类胶囊 -->
+          </div>
         </div>
         <div class="grid grid-cols-2 gap-2">
           <div>
@@ -1903,12 +1931,108 @@
     // 状态数据
     let suppliersData = [];
     let currentIntentFilter = '全部';
+    let currentCategoryFilter = '全部'; // 🏭 10大工厂产业分类筛选
     let currentListStatus = 'visited'; // 'visited' 已考察 | 'planned' 待拜访行程
     let activePlannedId = null;       // 正在现场考察的待拜访工厂 ID
     let currentRawExtracted = null;
     let searchTimeout = null;
     let currentPhotos = []; // 当前录入的照片 URL 列表
     let modalPhotos = [];   // 详情弹窗中的照片列表
+
+    // 🏭 10大工厂产业分类常量与样式映射
+    const FACTORY_CATEGORIES = [
+      "果条/果饼/果干/冻干/鲜果",
+      "苹果/果脯",
+      "果冻/果酱/调味品/阿胶膏",
+      "饮品/冰激凌/果汁/茶",
+      "巧克力",
+      "糕点",
+      "手伴文创",
+      "装修设计",
+      "包装耗材",
+      "其他"
+    ];
+
+    const CATEGORY_META = {
+      "果条/果饼/果干/冻干/鲜果": { short: "果条/冻干/鲜果", emoji: "🫐", bg: "bg-emerald-50", text: "text-emerald-800", border: "border-emerald-200" },
+      "苹果/果脯": { short: "苹果/果脯", emoji: "🍎", bg: "bg-rose-50", text: "text-rose-800", border: "border-rose-200" },
+      "果冻/果酱/调味品/阿胶膏": { short: "果冻/果酱/膏滋", emoji: "🥫", bg: "bg-amber-50", text: "text-amber-800", border: "border-amber-200" },
+      "饮品/冰激凌/果汁/茶": { short: "饮品/冰激凌/茶", emoji: "🧃", bg: "bg-sky-50", text: "text-sky-800", border: "border-sky-200" },
+      "巧克力": { short: "巧克力", emoji: "🍫", bg: "bg-amber-100", text: "text-amber-950", border: "border-amber-300" },
+      "糕点": { short: "糕点烘焙", emoji: "🥐", bg: "bg-orange-50", text: "text-orange-800", border: "border-orange-200" },
+      "手伴文创": { short: "手伴文创", emoji: "🎨", bg: "bg-purple-50", text: "text-purple-800", border: "border-purple-200" },
+      "装修设计": { short: "装修设计", emoji: "📐", bg: "bg-indigo-50", text: "text-indigo-800", border: "border-indigo-200" },
+      "包装耗材": { short: "包装耗材", emoji: "📦", bg: "bg-blue-50", text: "text-blue-800", border: "border-blue-200" },
+      "其他": { short: "其他", emoji: "🏷️", bg: "bg-slate-100", text: "text-slate-700", border: "border-slate-200" }
+    };
+
+    function getCategoryBadge(cat) {
+      const norm = cat || "果条/果饼/果干/冻干/鲜果";
+      const meta = CATEGORY_META[norm] || CATEGORY_META["其他"];
+      return `<span class="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-semibold ${meta.bg} ${meta.text} border ${meta.border} shadow-2xs">
+        <span class="mr-1">${meta.emoji}</span>${escapeHtml(norm)}
+      </span>`;
+    }
+
+    function renderCategoryChipSelector(containerId, hiddenInputId, selectedVal) {
+      const container = document.getElementById(containerId);
+      if (!container) return;
+      const currentVal = selectedVal || (document.getElementById(hiddenInputId) ? document.getElementById(hiddenInputId).value : "") || "果条/果饼/果干/冻干/鲜果";
+      const input = document.getElementById(hiddenInputId);
+      if (input) input.value = currentVal;
+
+      container.innerHTML = FACTORY_CATEGORIES.map(cat => {
+        const meta = CATEGORY_META[cat] || { emoji: "🏷️", short: cat };
+        const isSel = currentVal === cat;
+        return `
+          <button type="button" onclick="selectCategoryChip('${containerId}', '${hiddenInputId}', '${escapeHtml(cat)}')" class="px-2 py-1.5 rounded-xl border text-left text-xs flex items-center space-x-1.5 transition ${isSel ? 'bg-emerald-50 border-emerald-500 text-emerald-900 font-bold ring-1 ring-emerald-400 shadow-xs' : 'bg-slate-50 border-slate-200 text-slate-700 hover:bg-slate-100'}">
+            <span class="text-sm">${meta.emoji}</span>
+            <span class="truncate flex-1 leading-tight">${escapeHtml(cat)}</span>
+          </button>
+        `;
+      }).join("");
+    }
+
+    function selectCategoryChip(containerId, hiddenInputId, val) {
+      const input = document.getElementById(hiddenInputId);
+      if (input) input.value = val;
+      renderCategoryChipSelector(containerId, hiddenInputId, val);
+      if (hiddenInputId === 'field-category') {
+        scheduleSaveDraft();
+      }
+    }
+
+    function renderCategoryFilters(counts = {}) {
+      const container = document.getElementById("category-filter-container");
+      if (!container) return;
+      const totalCount = counts["全部"] || 0;
+      
+      let html = `
+        <button onclick="filterCategory('全部', this)" class="filter-cat-btn px-2.5 py-1 rounded-full text-xs font-semibold flex items-center space-x-1 flex-shrink-0 transition ${currentCategoryFilter === '全部' ? 'bg-slate-800 text-white shadow-xs' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'}">
+          <span>全部品类</span>
+          <span class="text-[10px] px-1.5 py-0.2 rounded-full ${currentCategoryFilter === '全部' ? 'bg-white/20 text-white' : 'bg-slate-200 text-slate-700'}">${totalCount}</span>
+        </button>
+      `;
+      
+      FACTORY_CATEGORIES.forEach(cat => {
+        const meta = CATEGORY_META[cat] || { emoji: "🏷️", short: cat };
+        const cnt = counts[cat] || 0;
+        const isSelected = currentCategoryFilter === cat;
+        html += `
+          <button onclick="filterCategory('${escapeHtml(cat)}', this)" class="filter-cat-btn px-2.5 py-1 rounded-full text-xs font-medium flex items-center space-x-1 flex-shrink-0 transition border ${isSelected ? 'bg-emerald-600 text-white border-emerald-600 shadow-xs font-semibold' : 'bg-white text-slate-700 border-slate-200 hover:bg-slate-50'}">
+            <span>${meta.emoji}</span>
+            <span>${meta.short}</span>
+            <span class="text-[10px] px-1 py-0.2 rounded-full ${isSelected ? 'bg-white/20 text-white' : 'bg-slate-100 text-slate-500'}">${cnt}</span>
+          </button>
+        `;
+      });
+      container.innerHTML = html;
+    }
+
+    function filterCategory(cat, btn) {
+      currentCategoryFilter = cat;
+      loadSuppliers(document.getElementById("search-input").value);
+    }
 
     // 行程规划弹窗控制 (支持新增与修改)
     function openPlanModal() {
@@ -2660,6 +2784,7 @@
           photos: currentPhotos || [],
           fields: {
             company_name: getDraftFieldVal("field-company-name"),
+            category: getDraftFieldVal("field-category") || "果条/果饼/果干/冻干/鲜果",
             location: getDraftFieldVal("field-location"),
             cooperation_intent: getDraftFieldVal("field-cooperation-intent") || "中",
             scale: getDraftFieldVal("field-scale"),
@@ -2723,6 +2848,13 @@
               hasData = true;
             }
           }
+          if (draft.fields.category) {
+            renderCategoryChipSelector('field-category-chips', 'field-category', draft.fields.category);
+          } else {
+            renderCategoryChipSelector('field-category-chips', 'field-category', '果条/果饼/果干/冻干/鲜果');
+          }
+        } else {
+          renderCategoryChipSelector('field-category-chips', 'field-category', '果条/果饼/果干/冻干/鲜果');
         }
         if (draft.contacts && draft.contacts.length > 0) {
           setContactsList("input", draft.contacts);
@@ -2757,7 +2889,7 @@
 
     function bindDraftAutoSaveEvents() {
       const ids = [
-        "field-company-name", "field-location", "field-cooperation-intent",
+        "field-company-name", "field-category", "field-location", "field-cooperation-intent",
         "field-scale", "field-main-products", "field-advantage-products",
         "field-price-terms", "field-payment-terms", "field-contact-name",
         "field-contact-role", "field-contact-phone", "field-extra-notes",
@@ -2809,6 +2941,11 @@
           document.getElementById("field-contact-phone").value = res.data.contact_phone || "";
           setContactsList('input', res.data.contacts, res.data);
           document.getElementById("field-extra-notes").value = res.data.extra_notes || "";
+          if (res.data.category) {
+            renderCategoryChipSelector('field-category-chips', 'field-category', res.data.category);
+          } else {
+            renderCategoryChipSelector('field-category-chips', 'field-category', '果条/果饼/果干/冻干/鲜果');
+          }
           if (res.data.plan_date) {
             const planDateEl = document.getElementById("field-plan-date");
             if (planDateEl) planDateEl.value = res.data.plan_date;
@@ -2839,6 +2976,7 @@
       setContactsList("input", []);
       updateCharCount();
       setRecordTargetStatus("visited");
+      renderCategoryChipSelector('field-category-chips', 'field-category', '果条/果饼/果干/冻干/鲜果');
       const planDateEl = document.getElementById("field-plan-date");
       if (planDateEl) planDateEl.value = "";
       try { localStorage.removeItem(DRAFT_STORAGE_KEY); } catch (e) {}
@@ -2869,9 +3007,11 @@
       const targetStatus = currentRecordTargetStatus || "visited";
       const planDate = getVal("field-plan-date");
       const contactsList = getContactsList('input');
+      const category = getVal("field-category") || "果条/果饼/果干/冻干/鲜果";
 
       const payload = {
         company_name,
+        category,
         location: getVal("field-location"),
         cooperation_intent: getVal("field-cooperation-intent") || "中",
         scale: getVal("field-scale"),
@@ -2942,6 +3082,7 @@
 
       // 预填已知的信息
       document.getElementById("field-company-name").value = item.company_name || "";
+      renderCategoryChipSelector('field-category-chips', 'field-category', item.category || '果条/果饼/果干/冻干/鲜果');
       document.getElementById("field-location").value = item.location || "";
       document.getElementById("field-contact-name").value = item.contact_name || "";
       document.getElementById("field-contact-role").value = item.contact_role || "";
@@ -2964,6 +3105,9 @@
         if (currentListStatus === 'visited' && currentIntentFilter !== '全部') {
           url += `&intent=${encodeURIComponent(currentIntentFilter)}`;
         }
+        if (currentCategoryFilter !== '全部') {
+          url += `&category=${encodeURIComponent(currentCategoryFilter)}`;
+        }
 
         const resp = await fetch(url);
         const res = await resp.json();
@@ -2975,9 +3119,34 @@
             renderSupplierCards(suppliersData);
           }
           updateIntentCounts();
+          updateCategoryCounts(searchTerm);
         }
       } catch (e) {
         console.error(e);
+      }
+    }
+
+    async function updateCategoryCounts(searchTerm = "") {
+      try {
+        let url = `/api/suppliers?status=${currentListStatus}`;
+        if (searchTerm) url += `&search=${encodeURIComponent(searchTerm)}`;
+        if (currentListStatus === 'visited' && currentIntentFilter !== '全部') {
+          url += `&intent=${encodeURIComponent(currentIntentFilter)}`;
+        }
+        const resp = await fetch(url);
+        const res = await resp.json();
+        if (res.status === "ok") {
+          const list = res.data;
+          const counts = { "全部": list.length };
+          FACTORY_CATEGORIES.forEach(c => counts[c] = 0);
+          list.forEach(item => {
+            const cat = item.category || "果条/果饼/果干/冻干/鲜果";
+            counts[cat] = (counts[cat] || 0) + 1;
+          });
+          renderCategoryFilters(counts);
+        }
+      } catch (e) {
+        console.warn("更新分类统计失败", e);
       }
     }
 
@@ -3008,10 +3177,11 @@
         <div class="bg-white rounded-2xl p-4 shadow-sm border border-amber-200/80 hover:border-amber-400 transition space-y-2.5">
           <div class="flex items-start justify-between">
             <div class="flex-1 pr-2">
-              <div class="flex items-center space-x-1.5 mb-1">
+              <div class="flex items-center space-x-1.5 mb-1 flex-wrap gap-1">
                 <span class="px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-100 text-amber-900 border border-amber-300 flex items-center">
                   <i data-lucide="clock" class="w-2.5 h-2.5 mr-1"></i>计划: ${escapeHtml(item.plan_date || '未定时间')}
                 </span>
+                ${getCategoryBadge(item.category)}
               </div>
               <h4 class="font-bold text-sm text-slate-900 leading-snug">${escapeHtml(item.company_name)}</h4>
               <p class="text-xs text-slate-500 mt-1 flex items-center">
@@ -3099,7 +3269,24 @@
         <div class="bg-white rounded-2xl p-4 shadow-sm border border-slate-200 hover:border-emerald-300 transition space-y-2.5">
           <div class="flex items-start justify-between">
             <div class="flex-1 pr-2">
-              <h4 class="font-bold text-sm text-slate-900 leading-snug">${escapeHtml(item.company_name)}</h4>
+              <div class="flex items-center space-x-1.5 flex-wrap gap-y-1 mb-0.5">
+                <h4 class="font-bold text-sm text-slate-900 leading-snug">${escapeHtml(item.company_name)}</h4>
+                ${getCategoryBadge(item.category)}
+              </div>
+              <div class="flex items-center space-x-2 mt-0.5">
+                <p class="text-xs text-slate-500 flex items-center truncate">
+                  <i data-lucide="map-pin" class="w-3 h-3 mr-1 text-slate-400 flex-shrink-0"></i>
+                  ${escapeHtml(item.location || '产区待补充')}
+                </p>
+                ${item.location ? `
+                  <a href="https://uri.amap.com/marker?position=${item.longitude || ''},${item.latitude || ''}&name=${encodeURIComponent(item.company_name)}&address=${encodeURIComponent(item.location)}" target="_blank" class="px-1.5 py-0.5 rounded bg-blue-50 text-blue-700 text-[10px] font-medium flex items-center border border-blue-200 flex-shrink-0">
+                    <i data-lucide="navigation" class="w-2.5 h-2.5 mr-0.5"></i>导航
+                  </a>
+                ` : ''}
+              </div>
+            </div>
+            ${getIntentBadge(item.cooperation_intent)}
+          </div>
               <div class="flex items-center space-x-2 mt-0.5">
                 <p class="text-xs text-slate-500 flex items-center truncate">
                   <i data-lucide="map-pin" class="w-3 h-3 mr-1 text-slate-400 flex-shrink-0"></i>
@@ -3371,6 +3558,7 @@
 
           document.getElementById("modal-id").value = d.id;
           document.getElementById("modal-company-name").value = d.company_name || "";
+          renderCategoryChipSelector('modal-category-chips', 'modal-category', d.category || '果条/果饼/果干/冻干/鲜果');
           document.getElementById("modal-location").value = d.location || "";
           document.getElementById("modal-intent").value = d.cooperation_intent || "中";
           document.getElementById("modal-scale").value = d.scale || "";
@@ -3511,6 +3699,7 @@
       const modalContacts = getContactsList('modal');
       const payload = {
         company_name,
+        category: (document.getElementById("modal-category") ? document.getElementById("modal-category").value : "") || "果条/果饼/果干/冻干/鲜果",
         location: document.getElementById("modal-location").value.trim(),
         cooperation_intent: document.getElementById("modal-intent").value,
         scale: document.getElementById("modal-scale").value.trim(),
@@ -4709,6 +4898,8 @@
     window.addEventListener("DOMContentLoaded", () => {
       checkMyAuthStatus();
       renderSampleButtons(currentRecordTargetStatus);
+      renderCategoryChipSelector('field-category-chips', 'field-category', '果条/果饼/果干/冻干/鲜果');
+      renderCategoryFilters();
       restoreDraftFromStorage();
       bindDraftAutoSaveEvents();
       loadFollowups();

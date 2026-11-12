@@ -153,6 +153,44 @@ def push_file_to_github(file_path: str, repo_path: str):
     return False
 
 # ----------------- 数据库初始化 -----------------
+CATEGORIES = [
+    "果条/果饼/果干/冻干/鲜果",
+    "苹果/果脯",
+    "果冻/果酱/调味品/阿胶膏",
+    "饮品/冰激凌/果汁/茶",
+    "巧克力",
+    "糕点",
+    "手伴文创",
+    "装修设计",
+    "包装耗材",
+    "其他"
+]
+
+def infer_category(company_name: str = "", main_products: str = "", advantage_products: str = "", raw_notes: str = "", extra_notes: str = "") -> str:
+    """根据企业名称、主打产品与备忘描述，智能推断其工厂产业所属的 10 大分类之一"""
+    text = f"{company_name} {main_products} {advantage_products} {raw_notes} {extra_notes}".lower()
+    if re.search(r"装修|室内设计|空间设计|展厅设计|施工|软装|硬装|陈列设计", text):
+        return "装修设计"
+    if re.search(r"包装盒|包装袋|包装箱|瓦楞|彩盒|塑料瓶|玻璃瓶|封口膜|包材|外包装|铁罐|铝箔袋|标签印刷|包装耗材", text):
+        return "包装耗材"
+    if re.search(r"手伴|文创|周边|盲盒|手办|ip衍生|公仔|纪念品|手作|手工皂|精油皂", text):
+        return "手伴文创"
+    if re.search(r"巧克力|可可|cocoa|chocolate|怡浓|芙烈浓|维朗妮卡", text):
+        return "巧克力"
+    if re.search(r"果条|果饼|果干|冻干|鲜果|果肉", text):
+        return "果条/果饼/果干/冻干/鲜果"
+    if re.search(r"冰激凌|冰淇淋|雪糕|果汁|饮品|饮料|浓缩汁|啤酒|精酿|花茶|果茶|茶饮|茶叶|花草茶|咖啡|苏打水", text):
+        return "饮品/冰激凌/果汁/茶"
+    if re.search(r"糕点|面包|蛋糕|饼干|烘焙|点心|月饼|蛋黄酥|中式糕点|西点|酥饼|泡芙|蛋挞", text):
+        return "糕点"
+    if re.search(r"果冻(?!干)|果酱|调味品|调味料|阿胶|阿胶膏|膏滋|辣酱|酱油|醋|调味", text):
+        return "果冻/果酱/调味品/阿胶膏"
+    if re.search(r"苹果|果脯|蜜饯|话梅|陈皮|果丹皮", text):
+        return "苹果/果脯"
+    if re.search(r"无花果", text):
+        return "果条/果饼/果干/冻干/鲜果"
+    return "其他"
+
 def init_db():
     pull_db_from_github()
     conn = sqlite3.connect(DB_PATH)
@@ -169,6 +207,7 @@ def init_db():
         price_terms TEXT,
         payment_terms TEXT,
         cooperation_intent TEXT,
+        category TEXT DEFAULT '果条/果饼/果干/冻干/鲜果',
         contact_name TEXT,
         contact_phone TEXT,
         contact_role TEXT,
@@ -180,7 +219,7 @@ def init_db():
     )
     """)
 
-    # 检查并自动升级数据库表结构（添加 images, latitude, longitude, status, plan_date, plan_notes 列）
+    # 检查并自动升级数据库表结构（添加 images, latitude, longitude, status, plan_date, plan_notes, contacts, category 列）
     cursor.execute("PRAGMA table_info(suppliers)")
     columns = [row[1] for row in cursor.fetchall()]
     if "images" not in columns:
@@ -197,6 +236,21 @@ def init_db():
         cursor.execute("ALTER TABLE suppliers ADD COLUMN plan_notes TEXT")
     if "contacts" not in columns:
         cursor.execute("ALTER TABLE suppliers ADD COLUMN contacts TEXT DEFAULT '[]'")
+    if "category" not in columns:
+        cursor.execute("ALTER TABLE suppliers ADD COLUMN category TEXT DEFAULT '果条/果饼/果干/冻干/鲜果'")
+
+    # 自动升级历史数据，补充推断分类
+    cursor.execute("SELECT id, company_name, main_products, advantage_products, raw_notes, extra_notes, category FROM suppliers")
+    all_suppliers = cursor.fetchall()
+    for row in all_suppliers:
+        inferred = infer_category(row[1] or "", row[2] or "", row[3] or "", row[4] or "", row[5] or "")
+        curr_cat = row[6]
+        if not curr_cat or curr_cat == "" or curr_cat == "其他" or (curr_cat == "果条/果饼/果干/冻干/鲜果" and inferred not in ["果条/果饼/果干/冻干/鲜果", "其他"]):
+            cursor.execute("UPDATE suppliers SET category = ? WHERE id = ?", (inferred, row[0]))
+
+    # 清理历史丢失图片的脏数据引用（避免卡片渲染出破损图片图标）
+    cursor.execute("UPDATE suppliers SET images = '[]' WHERE id IN (13, 22) AND images LIKE '%20261111_04%'")
+    conn.commit()
 
     # 系统设置表 (用于存储 AI 配置)
     cursor.execute("""
@@ -422,6 +476,7 @@ class SupplierCreate(BaseModel):
     price_terms: Optional[str] = ""
     payment_terms: Optional[str] = ""
     cooperation_intent: Optional[str] = "中"
+    category: Optional[str] = "果条/果饼/果干/冻干/鲜果"
     contact_name: Optional[str] = ""
     contact_phone: Optional[str] = ""
     contact_role: Optional[str] = ""
@@ -631,6 +686,15 @@ def rule_based_extract(text: str) -> Dict[str, Any]:
     if contacts_list and not res.get("contact_role"):
         res["contact_role"] = contacts_list[0].get("role", "")
 
+    # 智能推断工厂产业分类 (10大分类)
+    res["category"] = infer_category(
+        res.get("company_name", ""),
+        res.get("main_products", ""),
+        res.get("advantage_products", ""),
+        text,
+        res.get("extra_notes", "")
+    )
+
     return res
 
 async def ai_extract_info(text: str, settings: Dict[str, str]) -> Dict[str, Any]:
@@ -647,6 +711,18 @@ async def ai_extract_info(text: str, settings: Dict[str, str]) -> Dict[str, Any]
 
 字段说明：
 - company_name: 公司/工厂/合作社全称（必须尽量规范）
+- category: 工厂产业分类（【极其重要】必须且仅能从以下10个选项中精确选出1个最匹配的字符串：
+  1. "果条/果饼/果干/冻干/鲜果"
+  2. "苹果/果脯"
+  3. "果冻/果酱/调味品/阿胶膏"
+  4. "饮品/冰激凌/果汁/茶"
+  5. "巧克力"
+  6. "糕点"
+  7. "手伴文创"
+  8. "装修设计"
+  9. "包装耗材"
+  10. "其他"
+  若无法确定则根据主营业务就近选择，如无花果加工类默认选"果条/果饼/果干/冻干/鲜果"）
 - location: 地理位置（省、市、县/区及详细地址，如提到具体工业园、村庄、门牌或微信位置[位置]描述，全部完整记录）
 - scale: 规模与产能（若提到有工厂、占地、产能、设备等）
 - main_products: 主要产品列表（用逗号隔开）
@@ -713,6 +789,16 @@ async def ai_extract_info(text: str, settings: Dict[str, str]) -> Dict[str, Any]
                         if not parsed.get("contact_name"): parsed["contact_name"] = first_c.get("name", "")
                         if not parsed.get("contact_role"): parsed["contact_role"] = first_c.get("role", "")
                         if not parsed.get("contact_phone"): parsed["contact_phone"] = first_c.get("phone", "")
+
+                # 校验分类是否合法，若不合法或缺失则兜底规则推断
+                if "category" not in parsed or parsed["category"] not in CATEGORIES:
+                    parsed["category"] = infer_category(
+                        parsed.get("company_name", ""),
+                        parsed.get("main_products", ""),
+                        parsed.get("advantage_products", ""),
+                        text,
+                        parsed.get("extra_notes", "")
+                    )
 
                 parsed["raw_notes"] = text
                 return parsed
@@ -952,6 +1038,7 @@ async def extract_supplier(req: ExtractRequest, user: dict = Depends(require_adm
 def get_suppliers(
     search: Optional[str] = None,
     intent: Optional[str] = None,
+    category: Optional[str] = None,
     status: Optional[str] = "visited",
     user: dict = Depends(require_active_user)
 ):
@@ -968,12 +1055,16 @@ def get_suppliers(
 
     if search:
         s = f"%{search.strip()}%"
-        query += " AND (company_name LIKE ? OR location LIKE ? OR main_products LIKE ? OR contact_name LIKE ? OR advantage_products LIKE ? OR plan_notes LIKE ?)"
-        params.extend([s, s, s, s, s, s])
+        query += " AND (company_name LIKE ? OR location LIKE ? OR main_products LIKE ? OR contact_name LIKE ? OR advantage_products LIKE ? OR plan_notes LIKE ? OR category LIKE ?)"
+        params.extend([s, s, s, s, s, s, s])
 
     if intent and intent != "全部":
         query += " AND cooperation_intent = ?"
         params.append(intent)
+
+    if category and category != "全部":
+        query += " AND category = ?"
+        params.append(category)
 
     query += " ORDER BY id DESC"
     cursor.execute(query, params)
@@ -1112,6 +1203,11 @@ def create_supplier(supplier: SupplierCreate, background_tasks: BackgroundTasks,
     conn = sqlite3.connect(DB_PATH)
     cursor = conn.cursor()
 
+    # 处理产业分类
+    category = supplier.category if (supplier.category and supplier.category in CATEGORIES) else infer_category(
+        supplier.company_name, supplier.main_products or "", supplier.advantage_products or "", supplier.raw_notes or "", supplier.extra_notes or ""
+    )
+
     # 处理多联系人数据
     contacts_str = supplier.contacts or "[]"
     try:
@@ -1135,14 +1231,15 @@ def create_supplier(supplier: SupplierCreate, background_tasks: BackgroundTasks,
     cursor.execute("""
     INSERT INTO suppliers (
         company_name, location, scale, main_products, advantage_products,
-        price_terms, payment_terms, cooperation_intent, contact_name,
+        price_terms, payment_terms, cooperation_intent, category, contact_name,
         contact_phone, contact_role, raw_notes, extra_notes, images,
         latitude, longitude, status, plan_date, plan_notes, contacts, updated_at
-    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
     """, (
         supplier.company_name, supplier.location, supplier.scale,
         supplier.main_products, supplier.advantage_products,
         supplier.price_terms, supplier.payment_terms, supplier.cooperation_intent,
+        category,
         first_name, first_phone, first_role,
         supplier.raw_notes, supplier.extra_notes, supplier.images or "[]",
         supplier.latitude, supplier.longitude, supplier.status or "visited",
@@ -1164,15 +1261,17 @@ def update_supplier(supplier_id: int, supplier: SupplierCreate, background_tasks
     cursor = conn.cursor()
 
     # 查询旧记录状态与规划字段，如果前端未传递则保留原有值，绝不误篡改 status
-    cursor.execute("SELECT status, plan_date, plan_notes FROM suppliers WHERE id = ?", (supplier_id,))
+    cursor.execute("SELECT status, plan_date, plan_notes, category FROM suppliers WHERE id = ?", (supplier_id,))
     curr = cursor.fetchone()
     old_status = curr[0] if curr else "visited"
     old_plan_date = curr[1] if curr else None
     old_plan_notes = curr[2] if curr else None
+    old_category = curr[3] if curr else "果条/果饼/果干/冻干/鲜果"
 
     final_status = supplier.status if supplier.status else old_status
     final_plan_date = supplier.plan_date if (supplier.plan_date and supplier.plan_date.strip()) else old_plan_date
     final_plan_notes = supplier.plan_notes if (supplier.plan_notes and supplier.plan_notes.strip()) else old_plan_notes
+    final_category = supplier.category if (supplier.category and supplier.category in CATEGORIES) else (old_category or "果条/果饼/果干/冻干/鲜果")
 
     # 处理多联系人数据
     contacts_str = supplier.contacts or "[]"
@@ -1197,7 +1296,7 @@ def update_supplier(supplier_id: int, supplier: SupplierCreate, background_tasks
     cursor.execute("""
     UPDATE suppliers SET
         company_name = ?, location = ?, scale = ?, main_products = ?, advantage_products = ?,
-        price_terms = ?, payment_terms = ?, cooperation_intent = ?, contact_name = ?,
+        price_terms = ?, payment_terms = ?, cooperation_intent = ?, category = ?, contact_name = ?,
         contact_phone = ?, contact_role = ?, raw_notes = ?, extra_notes = ?, images = ?,
         latitude = ?, longitude = ?, status = ?, plan_date = ?, plan_notes = ?, contacts = ?,
         updated_at = CURRENT_TIMESTAMP
@@ -1206,6 +1305,7 @@ def update_supplier(supplier_id: int, supplier: SupplierCreate, background_tasks
         supplier.company_name, supplier.location, supplier.scale,
         supplier.main_products, supplier.advantage_products,
         supplier.price_terms, supplier.payment_terms, supplier.cooperation_intent,
+        final_category,
         first_name, first_phone, first_role,
         supplier.raw_notes, supplier.extra_notes, supplier.images or "[]",
         supplier.latitude, supplier.longitude, final_status,
@@ -1571,7 +1671,7 @@ def build_master_excel_bytes(ids: Optional[str] = None):
     ws.title = "无花果供应商总台账"
 
     headers = [
-        "序号", "公司全称", "具体地理位置", "合作意向", "规模与产能",
+        "序号", "公司全称", "产业分类", "具体地理位置", "合作意向", "规模与产能",
         "主要产品品类", "核心拳头产品", "供货报价明细清单",
         "账期与付款方式", "联系人", "职务", "联系电话",
         "考察备忘/特殊背景(外采/供货)", "最新沟通情况记录", "现场照片数", "最后更新时间"
@@ -1630,9 +1730,11 @@ def build_master_excel_bytes(ids: Optional[str] = None):
         except Exception:
             pass
 
+        cat = r["category"] if ("category" in r.keys() and r["category"]) else "果条/果饼/果干/冻干/鲜果"
         row_data = [
             idx,
             r["company_name"],
+            cat,
             r["location"],
             r["cooperation_intent"],
             r["scale"],
@@ -1656,33 +1758,34 @@ def build_master_excel_bytes(ids: Optional[str] = None):
             c = ws.cell(row=current_row, column=col_num)
             c.font = cell_font
             c.border = thin_border
-            if col_num in [1, 4, 10, 11, 12, 15, 16]:
+            if col_num in [1, 3, 5, 11, 12, 13, 16, 17]:
                 c.alignment = align_center
             else:
                 c.alignment = align_left
             
-            # 意向度高亮背景
-            if col_num == 4 and r["cooperation_intent"] in intent_colors:
+            # 意向度高亮背景 (第 5 列为合作意向)
+            if col_num == 5 and r["cooperation_intent"] in intent_colors:
                 c.fill = intent_colors[r["cooperation_intent"]]
 
     # 自适应列宽
     col_widths = {
         1: 6,   # 序号
         2: 28,  # 公司名称
-        3: 25,  # 位置
-        4: 10,  # 意向
-        5: 25,  # 规模
-        6: 25,  # 主要产品
-        7: 22,  # 优势产品
-        8: 30,  # 供货价格
-        9: 22,  # 账期
-        10: 12, # 联系人
-        11: 12, # 职务
-        12: 15, # 电话
-        13: 35, # 备忘
-        14: 35, # 最新沟通情况记录
-        15: 12, # 照片数
-        16: 20  # 时间
+        3: 20,  # 产业分类
+        4: 25,  # 位置
+        5: 10,  # 意向
+        6: 25,  # 规模
+        7: 25,  # 主要产品
+        8: 22,  # 优势产品
+        9: 30,  # 供货价格
+        10: 22, # 账期
+        11: 12, # 联系人
+        12: 12, # 职务
+        13: 15, # 电话
+        14: 35, # 备忘
+        15: 35, # 最新沟通情况记录
+        16: 12, # 照片数
+        17: 20  # 时间
     }
     for col_idx, width in col_widths.items():
         col_letter = get_column_letter(col_idx)
@@ -1744,9 +1847,10 @@ def build_single_supplier_excel_bytes(r):
     except Exception:
         pass
 
+    cat_str = r["category"] if ("category" in r.keys() and r["category"]) else "果条/果饼/果干/冻干/鲜果"
     items = [
-        ("公司规范全称", r["company_name"], "合作意向度", f"{r['cooperation_intent']} 意向"),
-        ("地理详细位置", r["location"] or "未填", "GPS经纬度", f"{r['latitude'] or '-'}, {r['longitude'] or '-'}"),
+        ("公司规范全称", r["company_name"], "产业所属分类", cat_str),
+        ("合作意向度", f"{r['cooperation_intent']} 意向", "地理详细位置", r["location"] or "未填"),
         ("工厂规模产能", r["scale"] or "未明确", "最后更新时间", r["updated_at"]),
         ("关键联系人", contacts_str, "联系电话/微信", phones_str),
         ("主要经营产品", r["main_products"] or "-", "账期与结算方式", r["payment_terms"] or "未明确"),
@@ -2249,7 +2353,15 @@ async def get_uploaded_file(filename: str):
         except Exception as e:
             print(f"⚠️ 动态从 GitHub 拉取图片失败: {e}")
 
-    raise HTTPException(status_code=404, detail="File not found")
+    PLACEHOLDER_SVG = (
+        b'<svg xmlns="http://www.w3.org/2000/svg" width="160" height="160" viewBox="0 0 160 160">'
+        b'<rect width="160" height="160" rx="16" fill="#F8FAFC" stroke="#E2E8F0" stroke-width="2"/>'
+        b'<text x="80" y="70" font-size="32" text-anchor="middle">&#128247;</text>'
+        b'<text x="80" y="102" font-size="13" fill="#64748B" font-family="sans-serif" text-anchor="middle" font-weight="bold">\xe6\x9a\x82\xe6\x97\xa0\xe7\x85\xa7\xe7\x89\x87</text>'
+        b'<text x="80" y="122" font-size="11" fill="#94A3B8" font-family="sans-serif" text-anchor="middle">\xe8\xaf\xa6\xe6\x83\x85\xe4\xb8\xad\xe5\x8f\xaf\xe8\xa1\xa5\xe6\x8b\x8d</text>'
+        b'</svg>'
+    )
+    return Response(content=PLACEHOLDER_SVG, media_type="image/svg+xml")
 
 # 挂载静态文件目录
 app.mount("/static", StaticFiles(directory=STATIC_DIR), name="static")
