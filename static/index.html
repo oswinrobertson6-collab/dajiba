@@ -4891,7 +4891,7 @@
         return;
       }
 
-      const todayStr = getLocalTodayStr();
+      const todayStr = getTodayStr();
       const isAdmin = currentUser && currentUser.role === "admin";
 
       container.innerHTML = list.map(item => {
@@ -5030,13 +5030,13 @@
         if (!item) return;
         titleEl.innerText = "编辑工作计划";
         selectWorkPlanCategory(item.category || "其他");
-        document.getElementById("wp-plan-date").value = item.plan_date || getLocalTodayStr();
+        document.getElementById("wp-plan-date").value = item.plan_date || getTodayStr();
         document.getElementById("wp-title").value = item.title || "";
         document.getElementById("wp-description").value = item.description || "";
       } else {
         titleEl.innerText = "新建工作计划";
         selectWorkPlanCategory("包装");
-        document.getElementById("wp-plan-date").value = getLocalTodayStr();
+        document.getElementById("wp-plan-date").value = getTodayStr();
         document.getElementById("wp-title").value = "";
         document.getElementById("wp-description").value = "";
       }
