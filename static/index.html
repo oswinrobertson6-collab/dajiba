@@ -401,15 +401,19 @@
 
     <!-- ================= 页面 3: 商务跟进与日程待办 ================= -->
     <section id="tab-calendar" class="tab-page space-y-3.5 hidden">
-      <!-- 跟进中心顶部：日程待办 vs 沟通动态流水 切换 -->
-      <div class="bg-slate-200/80 p-1 rounded-2xl flex items-center text-xs font-semibold">
-        <button onclick="switchCalendarSubTab('agenda')" id="btn-subtab-agenda" class="flex-1 py-2 rounded-xl bg-white text-emerald-800 shadow-xs flex items-center justify-center space-x-1.5 transition font-bold">
-          <i data-lucide="calendar" class="w-3.5 h-3.5 text-emerald-600"></i>
-          <span>商务日程待办 (<span id="count-todo-badge">0</span>)</span>
+      <!-- 跟进中心顶部：商务待办 vs 沟通动态 vs 独立工作计划 切换 -->
+      <div class="bg-slate-200/80 p-1 rounded-2xl grid grid-cols-3 gap-1 text-[11px] font-semibold">
+        <button onclick="switchCalendarSubTab('agenda')" id="btn-subtab-agenda" class="py-2 px-1 rounded-xl bg-white text-emerald-800 shadow-xs flex items-center justify-center space-x-1 transition font-bold truncate">
+          <i data-lucide="calendar" class="w-3.5 h-3.5 text-emerald-600 flex-shrink-0"></i>
+          <span>商务待办(<span id="count-todo-badge">0</span>)</span>
         </button>
-        <button onclick="switchCalendarSubTab('comms')" id="btn-subtab-comms" class="flex-1 py-2 rounded-xl text-slate-600 hover:text-slate-900 flex items-center justify-center space-x-1.5 transition">
-          <i data-lucide="message-square" class="w-3.5 h-3.5 text-amber-500"></i>
-          <span>沟通记录动态 (<span id="count-comms-badge">0</span>)</span>
+        <button onclick="switchCalendarSubTab('comms')" id="btn-subtab-comms" class="py-2 px-1 rounded-xl text-slate-600 hover:text-slate-900 flex items-center justify-center space-x-1 transition truncate">
+          <i data-lucide="message-square" class="w-3.5 h-3.5 text-amber-500 flex-shrink-0"></i>
+          <span>沟通动态(<span id="count-comms-badge">0</span>)</span>
+        </button>
+        <button onclick="switchCalendarSubTab('workplan')" id="btn-subtab-workplan" class="py-2 px-1 rounded-xl text-slate-600 hover:text-slate-900 flex items-center justify-center space-x-1 transition truncate">
+          <i data-lucide="clipboard-list" class="w-3.5 h-3.5 text-indigo-600 flex-shrink-0"></i>
+          <span>工作计划(<span id="count-workplan-badge">0</span>)</span>
         </button>
       </div>
 
@@ -532,6 +536,68 @@
 
         <!-- 沟通动态列表容器 -->
         <div id="global-comms-list-container" class="space-y-2.5">
+          <!-- 动态加载 -->
+        </div>
+      </div>
+
+      <!-- 独立工作计划页面 (非工厂项目：产品/包装/设计/装修等) -->
+      <div id="calendar-workplan-view" class="space-y-3 hidden">
+        <div class="flex items-center justify-between">
+          <div>
+            <h3 class="text-sm font-bold text-slate-800 flex items-center">
+              <i data-lucide="clipboard-list" class="w-4 h-4 text-indigo-600 mr-1.5"></i>
+              独立工作计划
+            </h3>
+            <p class="text-[11px] text-slate-400">产品、包装、设计、装修等专项落实与进度管控</p>
+          </div>
+          <button id="btn-add-workplan" onclick="openWorkPlanModal()" class="px-3 py-1.5 bg-indigo-600 hover:bg-indigo-700 active:bg-indigo-800 text-white rounded-xl text-xs font-semibold flex items-center shadow-xs transition">
+            <i data-lucide="plus" class="w-3.5 h-3.5 mr-1"></i>新建计划
+          </button>
+        </div>
+
+        <!-- 状态统计快捷卡片 -->
+        <div class="grid grid-cols-3 gap-2 text-center text-xs">
+          <div onclick="filterWorkPlansByStatus('pending')" id="wp-stat-card-pending" class="bg-white p-2.5 rounded-2xl border-2 border-indigo-400 shadow-2xs cursor-pointer transition">
+            <span class="block text-[10px] text-slate-400 mb-0.5">⚡ 进行中</span>
+            <span id="stat-wp-pending" class="text-lg font-black text-indigo-600">0</span>
+          </div>
+          <div onclick="filterWorkPlansByStatus('suspended')" id="wp-stat-card-suspended" class="bg-white p-2.5 rounded-2xl border border-slate-200 shadow-2xs cursor-pointer hover:border-amber-400 transition">
+            <span class="block text-[10px] text-slate-400 mb-0.5">⏸️ 已挂起</span>
+            <span id="stat-wp-suspended" class="text-lg font-black text-amber-600">0</span>
+          </div>
+          <div onclick="filterWorkPlansByStatus('completed')" id="wp-stat-card-completed" class="bg-white p-2.5 rounded-2xl border border-slate-200 shadow-2xs cursor-pointer hover:border-emerald-400 transition">
+            <span class="block text-[10px] text-slate-400 mb-0.5">✅ 已完结</span>
+            <span id="stat-wp-completed" class="text-lg font-black text-emerald-600">0</span>
+          </div>
+        </div>
+
+        <!-- 板块分类筛选胶囊 -->
+        <div class="flex items-center space-x-1.5 overflow-x-auto no-scrollbar py-0.5 text-xs">
+          <button onclick="filterWorkPlansByCategory('全部', this)" class="wp-cat-btn px-2.5 py-1 rounded-full bg-indigo-600 text-white font-semibold flex-shrink-0">全部板块</button>
+          <button onclick="filterWorkPlansByCategory('包装', this)" class="wp-cat-btn px-2.5 py-1 rounded-full bg-slate-100 text-slate-600 flex-shrink-0">📦 包装</button>
+          <button onclick="filterWorkPlansByCategory('设计', this)" class="wp-cat-btn px-2.5 py-1 rounded-full bg-slate-100 text-slate-600 flex-shrink-0">🎨 设计</button>
+          <button onclick="filterWorkPlansByCategory('装修', this)" class="wp-cat-btn px-2.5 py-1 rounded-full bg-slate-100 text-slate-600 flex-shrink-0">🏗️ 装修</button>
+          <button onclick="filterWorkPlansByCategory('产品', this)" class="wp-cat-btn px-2.5 py-1 rounded-full bg-slate-100 text-slate-600 flex-shrink-0">🍓 产品</button>
+          <button onclick="filterWorkPlansByCategory('资质', this)" class="wp-cat-btn px-2.5 py-1 rounded-full bg-slate-100 text-slate-600 flex-shrink-0">📄 资质</button>
+          <button onclick="filterWorkPlansByCategory('其他', this)" class="wp-cat-btn px-2.5 py-1 rounded-full bg-slate-100 text-slate-600 flex-shrink-0">📌 其他</button>
+        </div>
+
+        <!-- 状态切换栏 -->
+        <div class="flex items-center justify-between px-1">
+          <div class="flex items-center space-x-1.5">
+            <span id="wp-list-title" class="font-bold text-xs text-slate-700">进行中计划</span>
+            <span id="wp-list-count" class="text-[10px] bg-slate-100 text-slate-600 px-1.5 py-0.2 rounded-full font-bold">0</span>
+          </div>
+          <div class="flex items-center space-x-1 text-[11px]">
+            <button onclick="filterWorkPlansByStatus('pending')" id="btn-wp-st-pending" class="px-2 py-0.5 rounded-md font-semibold bg-indigo-100 text-indigo-800 transition">进行中</button>
+            <button onclick="filterWorkPlansByStatus('suspended')" id="btn-wp-st-suspended" class="px-2 py-0.5 rounded-md text-slate-500 hover:text-slate-800 transition">已挂起</button>
+            <button onclick="filterWorkPlansByStatus('completed')" id="btn-wp-st-completed" class="px-2 py-0.5 rounded-md text-slate-500 hover:text-slate-800 transition">已完结</button>
+            <button onclick="filterWorkPlansByStatus('全部')" id="btn-wp-st-all" class="px-2 py-0.5 rounded-md text-slate-500 hover:text-slate-800 transition">全部</button>
+          </div>
+        </div>
+
+        <!-- 工作计划列表容器 -->
+        <div id="workplan-list-container" class="space-y-2.5">
           <!-- 动态加载 -->
         </div>
       </div>
@@ -1268,6 +1334,130 @@
         <button onclick="closeCommModal()" class="px-4 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-600 rounded-xl text-xs font-medium transition">
           取消
         </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ================= 新建/编辑独立工作计划弹窗 ================= -->
+  <div id="workplan-modal" class="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-end sm:items-center justify-center hidden">
+    <div class="bg-white w-full max-w-md rounded-t-3xl sm:rounded-2xl p-4 sm:p-5 space-y-3.5 animate-in slide-in-from-bottom duration-200 max-h-[90vh] overflow-y-auto">
+      <div class="flex items-center justify-between border-b pb-2.5">
+        <div class="flex items-center space-x-2">
+          <i data-lucide="clipboard-list" class="w-4 h-4 text-indigo-600"></i>
+          <h3 id="workplan-modal-title" class="font-bold text-sm text-slate-800">新建工作计划</h3>
+        </div>
+        <button onclick="closeWorkPlanModal()" class="w-7 h-7 rounded-full bg-slate-100 hover:bg-slate-200 flex items-center justify-center text-slate-500 text-xs">✕</button>
+      </div>
+
+      <input type="hidden" id="wp-edit-id" value="">
+
+      <div class="space-y-3 text-xs">
+        <div>
+          <label class="block font-semibold text-slate-700 mb-1.5">所属板块分类</label>
+          <input type="hidden" id="wp-category-val" value="包装">
+          <div class="grid grid-cols-3 gap-1.5">
+            <button type="button" onclick="selectWorkPlanCategory('包装')" class="wp-cat-pill py-1.5 px-2 rounded-lg border text-center font-bold transition text-xs bg-indigo-600 text-white border-indigo-600">📦 包装</button>
+            <button type="button" onclick="selectWorkPlanCategory('设计')" class="wp-cat-pill py-1.5 px-2 rounded-lg border border-slate-200 text-slate-600 hover:bg-slate-50 text-center font-medium transition text-xs">🎨 设计</button>
+            <button type="button" onclick="selectWorkPlanCategory('装修')" class="wp-cat-pill py-1.5 px-2 rounded-lg border border-slate-200 text-slate-600 hover:bg-slate-50 text-center font-medium transition text-xs">🏗️ 装修</button>
+            <button type="button" onclick="selectWorkPlanCategory('产品')" class="wp-cat-pill py-1.5 px-2 rounded-lg border border-slate-200 text-slate-600 hover:bg-slate-50 text-center font-medium transition text-xs">🍓 产品</button>
+            <button type="button" onclick="selectWorkPlanCategory('资质')" class="wp-cat-pill py-1.5 px-2 rounded-lg border border-slate-200 text-slate-600 hover:bg-slate-50 text-center font-medium transition text-xs">📄 资质</button>
+            <button type="button" onclick="selectWorkPlanCategory('其他')" class="wp-cat-pill py-1.5 px-2 rounded-lg border border-slate-200 text-slate-600 hover:bg-slate-50 text-center font-medium transition text-xs">📌 其他</button>
+          </div>
+        </div>
+
+        <div>
+          <label class="block font-semibold text-slate-700 mb-1">计划目标日期 <span class="text-rose-500">*</span></label>
+          <input type="date" id="wp-plan-date" class="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-medium outline-none focus:ring-2 focus:ring-indigo-500">
+          <div class="flex space-x-1.5 mt-1.5">
+            <button type="button" onclick="setWorkPlanQuickDate(0)" class="text-[10px] px-2 py-0.5 bg-slate-100 hover:bg-slate-200 text-slate-600 rounded">今天</button>
+            <button type="button" onclick="setWorkPlanQuickDate(3)" class="text-[10px] px-2 py-0.5 bg-slate-100 hover:bg-slate-200 text-slate-600 rounded">3天后</button>
+            <button type="button" onclick="setWorkPlanQuickDate(7)" class="text-[10px] px-2 py-0.5 bg-slate-100 hover:bg-slate-200 text-slate-600 rounded">1周后</button>
+            <button type="button" onclick="setWorkPlanQuickDate(15)" class="text-[10px] px-2 py-0.5 bg-slate-100 hover:bg-slate-200 text-slate-600 rounded">半个月后</button>
+          </div>
+        </div>
+
+        <div>
+          <label class="block font-semibold text-slate-700 mb-1">计划事项标题 <span class="text-rose-500">*</span></label>
+          <input type="text" id="wp-title" placeholder="例如：落实完成包装盒设计打样情况" class="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs outline-none focus:ring-2 focus:ring-indigo-500">
+        </div>
+
+        <div>
+          <label class="block font-semibold text-slate-700 mb-1">具体要求 / 目标说明 (选填)</label>
+          <textarea id="wp-description" rows="2" placeholder="比如：需要确认礼盒尺寸、材质克重、印刷起订量及单价..." class="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs outline-none focus:ring-2 focus:ring-indigo-500"></textarea>
+        </div>
+      </div>
+
+      <div class="pt-2 flex space-x-2">
+        <button id="btn-save-workplan" onclick="handleSaveWorkPlan()" class="flex-1 py-2.5 bg-indigo-600 hover:bg-indigo-700 active:bg-indigo-800 text-white font-medium rounded-xl text-xs flex items-center justify-center space-x-1 shadow-sm transition">
+          <i data-lucide="check" class="w-4 h-4"></i>
+          <span>保存工作计划</span>
+        </button>
+        <button onclick="closeWorkPlanModal()" class="px-4 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-600 rounded-xl text-xs font-medium transition">取消</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ================= 记录落实情况弹窗 ================= -->
+  <div id="workplan-log-modal" class="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-end sm:items-center justify-center hidden">
+    <div class="bg-white w-full max-w-md rounded-t-3xl sm:rounded-2xl p-4 sm:p-5 space-y-3.5 animate-in slide-in-from-bottom duration-200">
+      <div class="flex items-center justify-between border-b pb-2.5">
+        <div class="flex items-center space-x-2">
+          <i data-lucide="file-check-2" class="w-4 h-4 text-emerald-600"></i>
+          <h3 class="font-bold text-sm text-slate-800">记录落实进展</h3>
+        </div>
+        <button onclick="closeWorkPlanLogModal()" class="w-7 h-7 rounded-full bg-slate-100 hover:bg-slate-200 flex items-center justify-center text-slate-500 text-xs">✕</button>
+      </div>
+
+      <input type="hidden" id="wp-log-plan-id" value="">
+      <div id="wp-log-plan-title" class="p-2.5 bg-indigo-50 border border-indigo-100 rounded-xl text-xs font-semibold text-indigo-900"></div>
+
+      <div class="space-y-2.5 text-xs">
+        <div>
+          <label class="block font-semibold text-slate-700 mb-1">最新落实情况 <span class="text-rose-500">*</span></label>
+          <textarea id="wp-log-content" rows="3" placeholder="例如：已对接设计公司出完3版礼盒初稿，周四确认刀版尺寸后打样..." class="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs outline-none focus:ring-2 focus:ring-emerald-500"></textarea>
+        </div>
+
+        <label class="flex items-center space-x-2 cursor-pointer p-2.5 bg-emerald-50/70 border border-emerald-200 rounded-xl text-xs font-semibold text-emerald-900">
+          <input type="checkbox" id="wp-log-complete-too" class="w-3.5 h-3.5 rounded accent-emerald-600">
+          <span>✅ 落实完毕，同时将该计划标记为「已完结」</span>
+        </label>
+      </div>
+
+      <div class="pt-1 flex space-x-2">
+        <button id="btn-save-wp-log" onclick="handleSaveWorkPlanLog()" class="flex-1 py-2.5 bg-emerald-600 hover:bg-emerald-700 active:bg-emerald-800 text-white font-medium rounded-xl text-xs flex items-center justify-center space-x-1 shadow-sm transition">
+          <i data-lucide="check" class="w-4 h-4"></i>
+          <span>保存落实记录</span>
+        </button>
+        <button onclick="closeWorkPlanLogModal()" class="px-4 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-600 rounded-xl text-xs font-medium transition">取消</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ================= 挂起工作计划弹窗 ================= -->
+  <div id="workplan-suspend-modal" class="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-end sm:items-center justify-center hidden">
+    <div class="bg-white w-full max-w-md rounded-t-3xl sm:rounded-2xl p-4 sm:p-5 space-y-3.5 animate-in slide-in-from-bottom duration-200">
+      <div class="flex items-center justify-between border-b pb-2.5">
+        <div class="flex items-center space-x-2">
+          <i data-lucide="pause-circle" class="w-4 h-4 text-amber-600"></i>
+          <h3 class="font-bold text-sm text-slate-800">挂起工作计划</h3>
+        </div>
+        <button onclick="closeSuspendWorkPlanModal()" class="w-7 h-7 rounded-full bg-slate-100 hover:bg-slate-200 flex items-center justify-center text-slate-500 text-xs">✕</button>
+      </div>
+
+      <input type="hidden" id="wp-suspend-plan-id" value="">
+      <div id="wp-suspend-plan-title" class="p-2.5 bg-amber-50 border border-amber-100 rounded-xl text-xs font-semibold text-amber-900"></div>
+
+      <div class="text-xs">
+        <label class="block font-semibold text-slate-700 mb-1">挂起原因 / 暂缓说明 (选填，方便日后恢复)</label>
+        <textarea id="wp-suspend-reason" rows="2" placeholder="例如：等待包材供应商二次报价后再定；或暂缓至下月启动..." class="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs outline-none focus:ring-2 focus:ring-amber-500"></textarea>
+      </div>
+
+      <div class="pt-1 flex space-x-2">
+        <button onclick="handleConfirmSuspendWorkPlan()" class="flex-1 py-2.5 bg-amber-500 hover:bg-amber-600 active:bg-amber-700 text-white font-medium rounded-xl text-xs flex items-center justify-center space-x-1 shadow-sm transition">
+          <i data-lucide="pause" class="w-4 h-4"></i>
+          <span>确认挂起</span>
+        </button>
+        <button onclick="closeSuspendWorkPlanModal()" class="px-4 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-600 rounded-xl text-xs font-medium transition">取消</button>
       </div>
     </div>
   </div>
@@ -2613,6 +2803,7 @@
       } else if (tabId === "tab-calendar") {
         loadFollowups();
         loadAllCommunications();
+        loadWorkPlans();
       } else if (tabId === "tab-export") {
         updateStats();
       } else if (tabId === "tab-settings") {
@@ -4559,24 +4750,461 @@
     }
 
     function switchCalendarSubTab(subTab) {
-      const btnAgenda = document.getElementById("btn-subtab-agenda");
-      const btnComms = document.getElementById("btn-subtab-comms");
-      const viewAgenda = document.getElementById("calendar-agenda-view");
-      const viewComms = document.getElementById("calendar-comms-view");
+      const tabs = [
+        { key: "agenda", btn: "btn-subtab-agenda", view: "calendar-agenda-view", activeText: "text-emerald-800" },
+        { key: "comms", btn: "btn-subtab-comms", view: "calendar-comms-view", activeText: "text-emerald-800" },
+        { key: "workplan", btn: "btn-subtab-workplan", view: "calendar-workplan-view", activeText: "text-indigo-800" }
+      ];
+      tabs.forEach(t => {
+        const b = document.getElementById(t.btn);
+        const v = document.getElementById(t.view);
+        if (t.key === subTab) {
+          if (b) b.className = `py-2 px-1 rounded-xl bg-white ${t.activeText} shadow-xs flex items-center justify-center space-x-1 transition font-bold truncate`;
+          if (v) v.classList.remove("hidden");
+        } else {
+          if (b) b.className = "py-2 px-1 rounded-xl text-slate-600 hover:text-slate-900 flex items-center justify-center space-x-1 transition truncate";
+          if (v) v.classList.add("hidden");
+        }
+      });
 
-      if (subTab === "agenda") {
-        if (btnAgenda) btnAgenda.className = "flex-1 py-2 rounded-xl bg-white text-emerald-800 shadow-xs flex items-center justify-center space-x-1.5 transition font-bold";
-        if (btnComms) btnComms.className = "flex-1 py-2 rounded-xl text-slate-600 hover:text-slate-900 flex items-center justify-center space-x-1.5 transition";
-        if (viewAgenda) viewAgenda.classList.remove("hidden");
-        if (viewComms) viewComms.classList.add("hidden");
-      } else {
-        if (btnComms) btnComms.className = "flex-1 py-2 rounded-xl bg-white text-emerald-800 shadow-xs flex items-center justify-center space-x-1.5 transition font-bold";
-        if (btnAgenda) btnAgenda.className = "flex-1 py-2 rounded-xl text-slate-600 hover:text-slate-900 flex items-center justify-center space-x-1.5 transition";
-        if (viewAgenda) viewAgenda.classList.add("hidden");
-        if (viewComms) viewComms.classList.remove("hidden");
+      if (subTab === "comms") {
         loadAllCommunications();
+      } else if (subTab === "workplan") {
+        loadWorkPlans();
       }
       lucide.createIcons();
+    }
+
+    // ----------------- 独立工作计划模块 (非工厂项目：产品/包装/设计/装修等) -----------------
+    let workPlansData = [];
+    let currentWpStatusFilter = "pending";
+    let currentWpCategoryFilter = "全部";
+
+    function getWorkPlanCatStyle(cat) {
+      switch (cat) {
+        case "包装": return { icon: "📦", badge: "bg-amber-100 text-amber-800 border-amber-300" };
+        case "设计": return { icon: "🎨", badge: "bg-purple-100 text-purple-800 border-purple-300" };
+        case "装修": return { icon: "🏗️", badge: "bg-orange-100 text-orange-800 border-orange-300" };
+        case "产品": return { icon: "🍓", badge: "bg-rose-100 text-rose-800 border-rose-300" };
+        case "资质": return { icon: "📄", badge: "bg-sky-100 text-sky-800 border-sky-300" };
+        default:     return { icon: "📌", badge: "bg-slate-100 text-slate-700 border-slate-300" };
+      }
+    }
+
+    async function loadWorkPlans() {
+      try {
+        const resp = await fetch("/api/work-plans");
+        const res = await resp.json();
+        if (res.status === "ok") {
+          workPlansData = res.data || [];
+          const pendingCount = workPlansData.filter(x => x.status === "pending").length;
+          const suspendedCount = workPlansData.filter(x => x.status === "suspended").length;
+          const completedCount = workPlansData.filter(x => x.status === "completed").length;
+
+          const badge = document.getElementById("count-workplan-badge");
+          if (badge) badge.innerText = pendingCount;
+          const stP = document.getElementById("stat-wp-pending");
+          const stS = document.getElementById("stat-wp-suspended");
+          const stC = document.getElementById("stat-wp-completed");
+          if (stP) stP.innerText = pendingCount;
+          if (stS) stS.innerText = suspendedCount;
+          if (stC) stC.innerText = completedCount;
+
+          renderWorkPlans();
+        }
+      } catch (e) {
+        console.warn("加载独立工作计划失败", e);
+      }
+    }
+
+    function filterWorkPlansByStatus(status) {
+      currentWpStatusFilter = status;
+      const statusBtns = {
+        pending: "btn-wp-st-pending",
+        suspended: "btn-wp-st-suspended",
+        completed: "btn-wp-st-completed",
+        "全部": "btn-wp-st-all"
+      };
+      Object.entries(statusBtns).forEach(([k, id]) => {
+        const el = document.getElementById(id);
+        if (!el) return;
+        if (k === status) {
+          el.className = "px-2 py-0.5 rounded-md font-semibold bg-indigo-100 text-indigo-800 transition";
+        } else {
+          el.className = "px-2 py-0.5 rounded-md text-slate-500 hover:text-slate-800 transition";
+        }
+      });
+
+      const cardIds = { pending: "wp-stat-card-pending", suspended: "wp-stat-card-suspended", completed: "wp-stat-card-completed" };
+      Object.entries(cardIds).forEach(([k, id]) => {
+        const c = document.getElementById(id);
+        if (!c) return;
+        if (k === status) {
+          c.className = "bg-white p-2.5 rounded-2xl border-2 border-indigo-400 shadow-2xs cursor-pointer transition";
+        } else {
+          c.className = "bg-white p-2.5 rounded-2xl border border-slate-200 shadow-2xs cursor-pointer hover:border-indigo-300 transition";
+        }
+      });
+
+      const titleMap = { pending: "进行中计划", suspended: "已挂起计划", completed: "已完结计划", "全部": "全部工作计划" };
+      const titleEl = document.getElementById("wp-list-title");
+      if (titleEl) titleEl.innerText = titleMap[status] || "工作计划";
+
+      renderWorkPlans();
+    }
+
+    function filterWorkPlansByCategory(cat, btnEl) {
+      currentWpCategoryFilter = cat;
+      document.querySelectorAll(".wp-cat-btn").forEach(b => {
+        b.className = "wp-cat-btn px-2.5 py-1 rounded-full bg-slate-100 text-slate-600 flex-shrink-0";
+      });
+      if (btnEl) {
+        btnEl.className = "wp-cat-btn px-2.5 py-1 rounded-full bg-indigo-600 text-white font-semibold flex-shrink-0";
+      }
+      renderWorkPlans();
+    }
+
+    function renderWorkPlans() {
+      const container = document.getElementById("workplan-list-container");
+      const countEl = document.getElementById("wp-list-count");
+      if (!container) return;
+
+      let list = workPlansData || [];
+      if (currentWpStatusFilter !== "全部") {
+        list = list.filter(x => x.status === currentWpStatusFilter);
+      }
+      if (currentWpCategoryFilter !== "全部") {
+        list = list.filter(x => x.category === currentWpCategoryFilter);
+      }
+
+      if (countEl) countEl.innerText = list.length;
+
+      if (list.length === 0) {
+        container.innerHTML = `
+          <div class="bg-white rounded-2xl p-8 text-center border border-slate-200 space-y-2">
+            <div class="text-3xl">📋</div>
+            <div class="text-xs font-semibold text-slate-700">当前筛选下暂无工作计划</div>
+            <p class="text-[11px] text-slate-400">可点击右上角「新建计划」记录产品、包装、设计、装修等安排</p>
+          </div>
+        `;
+        lucide.createIcons();
+        return;
+      }
+
+      const todayStr = getLocalTodayStr();
+      const isAdmin = currentUser && currentUser.role === "admin";
+
+      container.innerHTML = list.map(item => {
+        const catStyle = getWorkPlanCatStyle(item.category);
+        let logs = [];
+        try {
+          logs = JSON.parse(item.progress_logs || "[]");
+          if (!Array.isArray(logs)) logs = [];
+        } catch (e) { logs = []; }
+
+        let dateBadge = `<span class="px-2 py-0.5 rounded-full text-[10px] font-bold bg-indigo-50 text-indigo-800 border border-indigo-200 flex items-center"><i data-lucide="calendar" class="w-2.5 h-2.5 mr-1"></i>目标: ${escapeHtml(item.plan_date)}</span>`;
+        if (item.status === "pending") {
+          if (item.plan_date < todayStr) {
+            dateBadge = `<span class="px-2 py-0.5 rounded-full text-[10px] font-bold bg-rose-100 text-rose-800 border border-rose-300 flex items-center"><i data-lucide="alert-circle" class="w-2.5 h-2.5 mr-1"></i>已逾期: ${escapeHtml(item.plan_date)}</span>`;
+          } else if (item.plan_date === todayStr) {
+            dateBadge = `<span class="px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-100 text-amber-900 border border-amber-300 flex items-center"><i data-lucide="flame" class="w-2.5 h-2.5 mr-1"></i>今日到期: ${escapeHtml(item.plan_date)}</span>`;
+          }
+        }
+
+        let statusBadge = `<span class="px-2 py-0.5 rounded-full text-[10px] font-bold bg-indigo-100 text-indigo-800 border border-indigo-200">⚡ 进行中</span>`;
+        let cardBorder = "border-slate-200 hover:border-indigo-300";
+        if (item.status === "completed") {
+          statusBadge = `<span class="px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-100 text-emerald-800 border border-emerald-300">✅ 已完结</span>`;
+          cardBorder = "border-emerald-200/80 bg-emerald-50/10";
+        } else if (item.status === "suspended") {
+          statusBadge = `<span class="px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-100 text-amber-800 border border-amber-300">⏸️ 已挂起</span>`;
+          cardBorder = "border-amber-200/80 bg-amber-50/10";
+        }
+
+        const logsHtml = logs.length > 0
+          ? logs.map((lg, idx) => `
+              <div class="flex items-start space-x-1.5 text-[11px] ${idx === 0 ? 'text-slate-800 font-medium' : 'text-slate-500'}">
+                <span class="w-1.5 h-1.5 rounded-full ${idx === 0 ? 'bg-emerald-500' : 'bg-slate-300'} mt-1.5 flex-shrink-0"></span>
+                <div class="flex-1 leading-relaxed">
+                  <span class="text-[10px] text-slate-400 mr-1">[${escapeHtml(lg.time || '')}]</span>
+                  <span>${escapeHtml(lg.content || '')}</span>
+                </div>
+              </div>
+            `).join("")
+          : `<div class="text-[11px] text-slate-400 italic">暂无落实情况记录，可点击下方「+ 记落实」随时追踪推进</div>`;
+
+        return `
+          <div class="bg-white rounded-2xl p-3.5 shadow-sm border ${cardBorder} transition space-y-2.5">
+            <div class="flex items-start justify-between gap-2">
+              <div class="flex items-center flex-wrap gap-1.5">
+                ${dateBadge}
+                <span class="px-2 py-0.5 rounded-full text-[10px] font-bold border ${catStyle.badge}">${catStyle.icon} ${escapeHtml(item.category)}</span>
+              </div>
+              ${statusBadge}
+            </div>
+
+            <div>
+              <h4 class="font-bold text-sm text-slate-900 leading-snug ${item.status === 'completed' ? 'line-through text-slate-500' : ''}">${escapeHtml(item.title)}</h4>
+              ${item.description ? `<p class="text-xs text-slate-600 mt-1 leading-relaxed">${escapeHtml(item.description)}</p>` : ''}
+            </div>
+
+            ${(item.status === 'suspended' && item.suspend_reason) ? `
+              <div class="bg-amber-50 border border-amber-200 rounded-xl px-2.5 py-1.5 text-xs text-amber-900">
+                <strong>⏸️ 挂起说明：</strong>${escapeHtml(item.suspend_reason)}
+              </div>
+            ` : ''}
+
+            <div class="bg-slate-50 border border-slate-200/80 rounded-xl p-2.5 space-y-1.5">
+              <div class="flex items-center justify-between text-[11px] font-bold text-slate-600">
+                <span class="flex items-center"><i data-lucide="history" class="w-3 h-3 mr-1 text-emerald-600"></i>落实情况记录 (${logs.length})</span>
+                <span class="text-[10px] font-normal text-slate-400">更新于 ${formatDisplayTime(item.updated_at)}</span>
+              </div>
+              <div class="space-y-1.5 max-h-36 overflow-y-auto pr-1">
+                ${logsHtml}
+              </div>
+            </div>
+
+            ${isAdmin ? `
+              <div class="pt-1 flex items-center justify-end flex-wrap gap-1.5 text-xs">
+                <button onclick="openAddWorkPlanLogModal(${item.id})" class="px-2.5 py-1 rounded-lg bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border border-emerald-300 font-semibold flex items-center">
+                  <i data-lucide="plus-circle" class="w-3 h-3 mr-1 text-emerald-600"></i>记落实
+                </button>
+                <button onclick="openWorkPlanModal(${item.id})" class="px-2 py-1 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-700 font-medium flex items-center">
+                  <i data-lucide="edit-3" class="w-3 h-3 mr-0.5"></i>编辑
+                </button>
+                ${item.status === 'pending' ? `
+                  <button onclick="openSuspendWorkPlanModal(${item.id})" class="px-2 py-1 rounded-lg bg-amber-50 hover:bg-amber-100 text-amber-800 border border-amber-200 font-medium flex items-center">
+                    <i data-lucide="pause" class="w-3 h-3 mr-0.5"></i>挂起
+                  </button>
+                  <button onclick="changeWorkPlanStatus(${item.id}, 'completed')" class="px-2.5 py-1 rounded-lg bg-indigo-600 hover:bg-indigo-700 text-white font-semibold flex items-center shadow-xs">
+                    <i data-lucide="check-circle-2" class="w-3 h-3 mr-1"></i>完结
+                  </button>
+                ` : item.status === 'suspended' ? `
+                  <button onclick="changeWorkPlanStatus(${item.id}, 'pending')" class="px-2.5 py-1 rounded-lg bg-indigo-50 hover:bg-indigo-100 text-indigo-800 border border-indigo-200 font-semibold flex items-center">
+                    <i data-lucide="play" class="w-3 h-3 mr-1"></i>恢复推进
+                  </button>
+                  <button onclick="changeWorkPlanStatus(${item.id}, 'completed')" class="px-2 py-1 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white font-medium flex items-center">
+                    <i data-lucide="check-circle-2" class="w-3 h-3 mr-0.5"></i>完结
+                  </button>
+                ` : `
+                  <button onclick="changeWorkPlanStatus(${item.id}, 'pending')" class="px-2 py-1 rounded-lg bg-indigo-50 hover:bg-indigo-100 text-indigo-700 border border-indigo-200 font-medium flex items-center">
+                    <i data-lucide="rotate-ccw" class="w-3 h-3 mr-0.5"></i>重启
+                  </button>
+                `}
+                <button onclick="deleteWorkPlan(${item.id})" class="px-1.5 py-1 text-slate-400 hover:text-rose-600 text-xs" title="删除该工作计划">
+                  <i data-lucide="trash-2" class="w-3.5 h-3.5"></i>
+                </button>
+              </div>
+            ` : ''}
+          </div>
+        `;
+      }).join("");
+
+      lucide.createIcons();
+    }
+
+    function selectWorkPlanCategory(cat) {
+      document.getElementById("wp-category-val").value = cat;
+      document.querySelectorAll(".wp-cat-pill").forEach(btn => {
+        if (btn.innerText.includes(cat)) {
+          btn.className = "wp-cat-pill py-1.5 px-2 rounded-lg border text-center font-bold transition text-xs bg-indigo-600 text-white border-indigo-600";
+        } else {
+          btn.className = "wp-cat-pill py-1.5 px-2 rounded-lg border border-slate-200 text-slate-600 hover:bg-slate-50 text-center font-medium transition text-xs";
+        }
+      });
+    }
+
+    function setWorkPlanQuickDate(offsetDays) {
+      const d = new Date();
+      d.setDate(d.getDate() + offsetDays);
+      document.getElementById("wp-plan-date").value = d.toISOString().split("T")[0];
+    }
+
+    function openWorkPlanModal(editId = null) {
+      const modal = document.getElementById("workplan-modal");
+      const titleEl = document.getElementById("workplan-modal-title");
+      document.getElementById("wp-edit-id").value = editId ? String(editId) : "";
+
+      if (editId) {
+        const item = workPlansData.find(x => x.id === editId);
+        if (!item) return;
+        titleEl.innerText = "编辑工作计划";
+        selectWorkPlanCategory(item.category || "其他");
+        document.getElementById("wp-plan-date").value = item.plan_date || getLocalTodayStr();
+        document.getElementById("wp-title").value = item.title || "";
+        document.getElementById("wp-description").value = item.description || "";
+      } else {
+        titleEl.innerText = "新建工作计划";
+        selectWorkPlanCategory("包装");
+        document.getElementById("wp-plan-date").value = getLocalTodayStr();
+        document.getElementById("wp-title").value = "";
+        document.getElementById("wp-description").value = "";
+      }
+
+      modal.classList.remove("hidden");
+      lucide.createIcons();
+    }
+
+    function closeWorkPlanModal() {
+      document.getElementById("workplan-modal").classList.add("hidden");
+    }
+
+    async function handleSaveWorkPlan() {
+      const editId = document.getElementById("wp-edit-id").value;
+      const category = document.getElementById("wp-category-val").value;
+      const plan_date = document.getElementById("wp-plan-date").value;
+      const title = document.getElementById("wp-title").value.trim();
+      const description = document.getElementById("wp-description").value.trim();
+
+      if (!plan_date) return showToast("⚠️ 请选择目标日期", true);
+      if (!title) return showToast("⚠️ 请输入计划事项标题", true);
+
+      const btn = document.getElementById("btn-save-workplan");
+      btn.disabled = true;
+      try {
+        const url = editId ? `/api/work-plans/${editId}` : "/api/work-plans";
+        const method = editId ? "PUT" : "POST";
+        const resp = await fetch(url, {
+          method,
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ plan_date, category, title, description })
+        });
+        const res = await resp.json();
+        if (res.status === "ok") {
+          showToast(editId ? "✅ 工作计划已更新" : "🎉 工作计划已创建");
+          closeWorkPlanModal();
+          await loadWorkPlans();
+        } else {
+          showToast(res.detail || "保存失败", true);
+        }
+      } catch (e) {
+        showToast("网络异常，保存失败", true);
+      } finally {
+        btn.disabled = false;
+      }
+    }
+
+    function openAddWorkPlanLogModal(planId) {
+      const item = workPlansData.find(x => x.id === planId);
+      if (!item) return;
+      document.getElementById("wp-log-plan-id").value = String(planId);
+      document.getElementById("wp-log-plan-title").innerText = `📌 ${item.title} (目标：${item.plan_date})`;
+      document.getElementById("wp-log-content").value = "";
+      document.getElementById("wp-log-complete-too").checked = false;
+      document.getElementById("workplan-log-modal").classList.remove("hidden");
+      lucide.createIcons();
+    }
+
+    function closeWorkPlanLogModal() {
+      document.getElementById("workplan-log-modal").classList.add("hidden");
+    }
+
+    async function handleSaveWorkPlanLog() {
+      const planId = document.getElementById("wp-log-plan-id").value;
+      const content = document.getElementById("wp-log-content").value.trim();
+      const completeToo = document.getElementById("wp-log-complete-too").checked;
+      if (!content) return showToast("⚠️ 请填写最新落实情况", true);
+
+      const btn = document.getElementById("btn-save-wp-log");
+      btn.disabled = true;
+      try {
+        const resp = await fetch(`/api/work-plans/${planId}/logs`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ content })
+        });
+        const res = await resp.json();
+        if (res.status === "ok") {
+          if (completeToo) {
+            await fetch(`/api/work-plans/${planId}`, {
+              method: "PUT",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ status: "completed" })
+            });
+          }
+          showToast(completeToo ? "✅ 已记录落实并标记完结！" : "✅ 落实进展已记录！");
+          closeWorkPlanLogModal();
+          await loadWorkPlans();
+        } else {
+          showToast(res.detail || "记录失败", true);
+        }
+      } catch (e) {
+        showToast("网络异常", true);
+      } finally {
+        btn.disabled = false;
+      }
+    }
+
+    function openSuspendWorkPlanModal(planId) {
+      const item = workPlansData.find(x => x.id === planId);
+      if (!item) return;
+      document.getElementById("wp-suspend-plan-id").value = String(planId);
+      document.getElementById("wp-suspend-plan-title").innerText = `⏸️ ${item.title}`;
+      document.getElementById("wp-suspend-reason").value = item.suspend_reason || "";
+      document.getElementById("workplan-suspend-modal").classList.remove("hidden");
+      lucide.createIcons();
+    }
+
+    function closeSuspendWorkPlanModal() {
+      document.getElementById("workplan-suspend-modal").classList.add("hidden");
+    }
+
+    async function handleConfirmSuspendWorkPlan() {
+      const planId = document.getElementById("wp-suspend-plan-id").value;
+      const suspend_reason = document.getElementById("wp-suspend-reason").value.trim();
+      try {
+        const resp = await fetch(`/api/work-plans/${planId}`, {
+          method: "PUT",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ status: "suspended", suspend_reason })
+        });
+        const res = await resp.json();
+        if (res.status === "ok") {
+          showToast("⏸️ 已挂起该工作计划");
+          closeSuspendWorkPlanModal();
+          await loadWorkPlans();
+        } else {
+          showToast(res.detail || "操作失败", true);
+        }
+      } catch (e) {
+        showToast("网络异常", true);
+      }
+    }
+
+    async function changeWorkPlanStatus(planId, newStatus) {
+      try {
+        const resp = await fetch(`/api/work-plans/${planId}`, {
+          method: "PUT",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ status: newStatus })
+        });
+        const res = await resp.json();
+        if (res.status === "ok") {
+          const msgMap = { completed: "✅ 已标记为完结！", pending: "▶️ 已恢复推进！", suspended: "⏸️ 已挂起" };
+          showToast(msgMap[newStatus] || "状态已更新");
+          await loadWorkPlans();
+        } else {
+          showToast(res.detail || "状态更新失败", true);
+        }
+      } catch (e) {
+        showToast("网络异常", true);
+      }
+    }
+
+    async function deleteWorkPlan(planId) {
+      if (!confirm("确定要彻底删除这条工作计划及其落实记录吗？")) return;
+      try {
+        const resp = await fetch(`/api/work-plans/${planId}`, { method: "DELETE" });
+        const res = await resp.json();
+        if (res.status === "ok") {
+          showToast("🗑️ 已删除工作计划");
+          await loadWorkPlans();
+        } else {
+          showToast(res.detail || "删除失败", true);
+        }
+      } catch (e) {
+        showToast("网络异常", true);
+      }
     }
 
     function selectCommType(type) {
@@ -4936,6 +5564,7 @@
       bindDraftAutoSaveEvents();
       loadFollowups();
       loadAllCommunications();
+      loadWorkPlans();
       lucide.createIcons();
     });
 

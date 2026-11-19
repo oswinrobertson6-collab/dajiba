@@ -321,6 +321,23 @@ def init_db():
     )
     """)
 
+    # 独立工作计划表 (不针对工厂，用于产品/包装/设计/装修等项目推进与落实记录)
+    cursor.execute("""
+    CREATE TABLE IF NOT EXISTS work_plans (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        plan_date TEXT NOT NULL,
+        category TEXT DEFAULT '其他',
+        title TEXT NOT NULL,
+        description TEXT DEFAULT '',
+        progress_logs TEXT DEFAULT '[]',
+        status TEXT DEFAULT 'pending',
+        suspend_reason TEXT DEFAULT '',
+        creator_name TEXT DEFAULT '',
+        created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+        updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+    )
+    """)
+
     # 保证最高管理员 xiaoyao 永久存在（密码 123456）
     cursor.execute("SELECT id, role, password_hash, salt FROM users WHERE username = 'xiaoyao'")
     admin_row = cursor.fetchone()
@@ -524,6 +541,24 @@ class CommunicationUpdate(BaseModel):
     comm_type: Optional[str] = None
     content: Optional[str] = None
     next_step: Optional[str] = None
+
+class WorkPlanCreate(BaseModel):
+    plan_date: str
+    category: Optional[str] = "包装"
+    title: str
+    description: Optional[str] = ""
+    status: Optional[str] = "pending"
+
+class WorkPlanUpdate(BaseModel):
+    plan_date: Optional[str] = None
+    category: Optional[str] = None
+    title: Optional[str] = None
+    description: Optional[str] = None
+    status: Optional[str] = None
+    suspend_reason: Optional[str] = None
+
+class WorkPlanLogCreate(BaseModel):
+    content: str
 
 class ExtractRequest(BaseModel):
     text: str
@@ -1611,6 +1646,191 @@ def delete_communication(
     background_tasks.add_task(push_db_to_github)
     return {"status": "ok", "message": "沟通记录已删除"}
 
+# ----------------- 独立工作计划 API (产品/包装/设计/装修等非工厂项目) -----------------
+
+WORK_PLAN_CATEGORIES = ["产品", "包装", "设计", "装修", "资质", "其他"]
+WORK_PLAN_STATUSES = ["pending", "completed", "suspended"]
+
+@app.get("/api/work-plans")
+def get_work_plans(
+    category: Optional[str] = None,
+    status: Optional[str] = None,
+    search: Optional[str] = None,
+    user: dict = Depends(require_active_user)
+):
+    conn = sqlite3.connect(DB_PATH)
+    conn.row_factory = sqlite3.Row
+    cursor = conn.cursor()
+
+    query = "SELECT * FROM work_plans WHERE 1=1"
+    params = []
+
+    if category and category != "全部":
+        query += " AND category = ?"
+        params.append(category)
+    if status and status != "全部":
+        query += " AND status = ?"
+        params.append(status)
+    if search and search.strip():
+        s = f"%{search.strip()}%"
+        query += " AND (title LIKE ? OR description LIKE ? OR progress_logs LIKE ? OR suspend_reason LIKE ?)"
+        params.extend([s, s, s, s])
+
+    query += """
+        ORDER BY
+            CASE status WHEN 'pending' THEN 1 WHEN 'suspended' THEN 2 WHEN 'completed' THEN 3 ELSE 4 END ASC,
+            plan_date ASC,
+            updated_at DESC,
+            id DESC
+    """
+    cursor.execute(query, params)
+    rows = cursor.fetchall()
+    data = [dict(r) for r in rows]
+    conn.close()
+    return {"status": "ok", "data": data}
+
+@app.post("/api/work-plans")
+def create_work_plan(
+    item: WorkPlanCreate,
+    background_tasks: BackgroundTasks,
+    user: dict = Depends(require_admin)
+):
+    title = item.title.strip()
+    plan_date = item.plan_date.strip()
+    if not title:
+        raise HTTPException(status_code=400, detail="工作计划标题不能为空")
+    if not plan_date:
+        raise HTTPException(status_code=400, detail="请选择目标日期")
+
+    cat = item.category if item.category in WORK_PLAN_CATEGORIES else "其他"
+    st = item.status if item.status in WORK_PLAN_STATUSES else "pending"
+    creator = user.get("display_name") or user.get("username") or "逍遥"
+    now_str = get_now_str()
+
+    conn = sqlite3.connect(DB_PATH)
+    cursor = conn.cursor()
+    cursor.execute("""
+        INSERT INTO work_plans (
+            plan_date, category, title, description, progress_logs, status, suspend_reason, creator_name, created_at, updated_at
+        ) VALUES (?, ?, ?, ?, '[]', ?, '', ?, ?, ?)
+    """, (plan_date, cat, title, (item.description or "").strip(), st, creator, now_str, now_str))
+    new_id = cursor.lastrowid
+    conn.commit()
+    conn.close()
+
+    background_tasks.add_task(push_db_to_github)
+    return {"status": "ok", "message": "工作计划已创建", "id": new_id}
+
+@app.put("/api/work-plans/{plan_id}")
+def update_work_plan(
+    plan_id: int,
+    item: WorkPlanUpdate,
+    background_tasks: BackgroundTasks,
+    user: dict = Depends(require_admin)
+):
+    conn = sqlite3.connect(DB_PATH)
+    cursor = conn.cursor()
+    cursor.execute("SELECT id, status FROM work_plans WHERE id = ?", (plan_id,))
+    row = cursor.fetchone()
+    if not row:
+        conn.close()
+        raise HTTPException(status_code=404, detail="未找到该工作计划")
+
+    updates = []
+    params = []
+    if item.plan_date is not None and item.plan_date.strip():
+        updates.append("plan_date = ?")
+        params.append(item.plan_date.strip())
+    if item.category is not None and item.category in WORK_PLAN_CATEGORIES:
+        updates.append("category = ?")
+        params.append(item.category)
+    if item.title is not None and item.title.strip():
+        updates.append("title = ?")
+        params.append(item.title.strip())
+    if item.description is not None:
+        updates.append("description = ?")
+        params.append(item.description.strip())
+    if item.status is not None and item.status in WORK_PLAN_STATUSES:
+        updates.append("status = ?")
+        params.append(item.status)
+        if item.status != "suspended" and item.suspend_reason is None:
+            updates.append("suspend_reason = ?")
+            params.append("")
+    if item.suspend_reason is not None:
+        updates.append("suspend_reason = ?")
+        params.append(item.suspend_reason.strip())
+
+    if updates:
+        now_str = get_now_str()
+        updates.append("updated_at = ?")
+        params.append(now_str)
+        params.append(plan_id)
+        cursor.execute(f"UPDATE work_plans SET {', '.join(updates)} WHERE id = ?", params)
+        conn.commit()
+
+    conn.close()
+    background_tasks.add_task(push_db_to_github)
+    return {"status": "ok", "message": "工作计划已更新"}
+
+@app.post("/api/work-plans/{plan_id}/logs")
+def add_work_plan_log(
+    plan_id: int,
+    log: WorkPlanLogCreate,
+    background_tasks: BackgroundTasks,
+    user: dict = Depends(require_admin)
+):
+    content = log.content.strip()
+    if not content:
+        raise HTTPException(status_code=400, detail="落实情况内容不能为空")
+
+    conn = sqlite3.connect(DB_PATH)
+    cursor = conn.cursor()
+    cursor.execute("SELECT progress_logs FROM work_plans WHERE id = ?", (plan_id,))
+    row = cursor.fetchone()
+    if not row:
+        conn.close()
+        raise HTTPException(status_code=404, detail="未找到该工作计划")
+
+    try:
+        logs = json.loads(row[0] or "[]")
+        if not isinstance(logs, list):
+            logs = []
+    except Exception:
+        logs = []
+
+    now_str = get_now_str()
+    operator = user.get("display_name") or user.get("username") or "逍遥"
+    logs.insert(0, {
+        "time": now_str[:16],
+        "content": content,
+        "operator": operator
+    })
+
+    cursor.execute(
+        "UPDATE work_plans SET progress_logs = ?, updated_at = ? WHERE id = ?",
+        (json.dumps(logs, ensure_ascii=False), now_str, plan_id)
+    )
+    conn.commit()
+    conn.close()
+
+    background_tasks.add_task(push_db_to_github)
+    return {"status": "ok", "message": "落实情况已记录", "logs": logs}
+
+@app.delete("/api/work-plans/{plan_id}")
+def delete_work_plan(
+    plan_id: int,
+    background_tasks: BackgroundTasks,
+    user: dict = Depends(require_admin)
+):
+    conn = sqlite3.connect(DB_PATH)
+    cursor = conn.cursor()
+    cursor.execute("DELETE FROM work_plans WHERE id = ?", (plan_id,))
+    conn.commit()
+    conn.close()
+
+    background_tasks.add_task(push_db_to_github)
+    return {"status": "ok", "message": "工作计划已删除"}
+
 # ----------------- 设置管理 -----------------
 @app.get("/api/settings")
 def get_settings(user: dict = Depends(require_admin)):
@@ -1801,6 +2021,60 @@ def build_master_excel_bytes(ids: Optional[str] = None):
     for col_idx, width in col_widths.items():
         col_letter = get_column_letter(col_idx)
         ws.column_dimensions[col_letter].width = width
+
+    # 追加第二个工作表：独立工作计划台账（非工厂类：产品/包装/设计/装修等）
+    try:
+        conn_wp = sqlite3.connect(DB_PATH)
+        conn_wp.row_factory = sqlite3.Row
+        cur_wp = conn_wp.cursor()
+        cur_wp.execute("SELECT * FROM work_plans ORDER BY CASE status WHEN 'pending' THEN 1 WHEN 'suspended' THEN 2 ELSE 3 END, plan_date ASC, id DESC")
+        wp_rows = cur_wp.fetchall()
+        conn_wp.close()
+
+        ws_wp = wb.create_sheet(title="独立工作计划")
+        wp_headers = ["序号", "目标日期", "板块分类", "计划事项", "详细要求/目标", "状态", "挂起原因", "落实进展记录", "创建人", "最后更新时间"]
+        ws_wp.append(wp_headers)
+        ws_wp.row_dimensions[1].height = 28
+        for col_num in range(1, len(wp_headers) + 1):
+            c = ws_wp.cell(row=1, column=col_num)
+            c.font = header_font
+            c.fill = header_fill
+            c.alignment = align_center
+            c.border = thin_border
+
+        status_map = {"pending": "进行中", "completed": "已完结", "suspended": "已挂起"}
+        for idx, wr in enumerate(wp_rows, start=1):
+            try:
+                logs = json.loads(wr["progress_logs"] or "[]")
+                logs_str = "\n".join([f"[{lg.get('time','')}] {lg.get('content','')}" for lg in logs]) if logs else "暂无落实记录"
+            except Exception:
+                logs_str = "暂无落实记录"
+
+            ws_wp.append([
+                idx,
+                wr["plan_date"],
+                wr["category"],
+                wr["title"],
+                wr["description"] or "",
+                status_map.get(wr["status"], wr["status"]),
+                wr["suspend_reason"] or "",
+                logs_str,
+                wr["creator_name"] or "",
+                wr["updated_at"] or ""
+            ])
+            r_idx = idx + 1
+            ws_wp.row_dimensions[r_idx].height = 28
+            for col_num in range(1, len(wp_headers) + 1):
+                c = ws_wp.cell(row=r_idx, column=col_num)
+                c.font = cell_font
+                c.border = thin_border
+                c.alignment = align_center if col_num in [1, 2, 3, 6, 9, 10] else align_left
+
+        wp_widths = {1: 6, 2: 14, 3: 12, 4: 28, 5: 32, 6: 12, 7: 24, 8: 42, 9: 14, 10: 20}
+        for col_idx, width in wp_widths.items():
+            ws_wp.column_dimensions[get_column_letter(col_idx)].width = width
+    except Exception as e:
+        print(f"⚠️ 导出独立工作计划 sheet 异常: {e}")
 
     output = BytesIO()
     wb.save(output)
@@ -2222,7 +2496,8 @@ def start_local_nutstore_auto_sync():
         try:
             local_dir = get_local_nutstore_dir()
             if local_dir:
-                pull_db_from_github()
+                if pull_db_from_github():
+                    init_db()
                 master_bytes, master_fn = build_master_excel_bytes()
                 base_folder = os.path.join(local_dir, "无花果供应商档案")
                 os.makedirs(base_folder, exist_ok=True)
@@ -2238,6 +2513,7 @@ def start_local_nutstore_auto_sync():
                 local_dir = get_local_nutstore_dir()
                 if local_dir:
                     if pull_db_from_github():
+                        init_db()
                         master_bytes, master_fn = build_master_excel_bytes()
                         base_folder = os.path.join(local_dir, "无花果供应商档案")
                         os.makedirs(base_folder, exist_ok=True)
