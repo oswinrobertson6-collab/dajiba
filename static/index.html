@@ -71,6 +71,11 @@
           <i data-lucide="plus" class="w-3.5 h-3.5 mr-1"></i>录入
         </button>
 
+        <!-- 强制刷新最新版 (方便苹果主屏幕桌面图标一键更新) -->
+        <button onclick="window.location.replace('/?v=' + Date.now())" class="p-1.5 text-xs bg-emerald-700/80 hover:bg-emerald-600 rounded-full flex items-center border border-emerald-400/30" title="刷新同步最新版">
+          <i data-lucide="refresh-cw" class="w-3.5 h-3.5"></i>
+        </button>
+
         <button onclick="toggleQrModal()" class="p-1.5 text-xs bg-emerald-700/80 hover:bg-emerald-600 rounded-full flex items-center border border-emerald-400/30" title="手机扫码">
           <i data-lucide="qr-code" class="w-3.5 h-3.5"></i>
         </button>
